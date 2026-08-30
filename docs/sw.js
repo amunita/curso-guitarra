@@ -1,5 +1,5 @@
 /* Service worker: la app completa funciona offline (cache-first). */
-const VERSION = '7af3991965';
+const VERSION = 'd8df5a89f3';
 const CACHE = 'guitarra-' + VERSION;
 const ASSETS = [
   './',
@@ -9,7 +9,26 @@ const ASSETS = [
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/apple-touch-icon.png',
+  './samples/A3.mp3',
+  './samples/As5.mp3',
+  './samples/B2.mp3',
+  './samples/B3.mp3',
+  './samples/B4.mp3',
+  './samples/Cs3.mp3',
+  './samples/Cs4.mp3',
+  './samples/Cs5.mp3',
+  './samples/E2.mp3',
+  './samples/E3.mp3',
+  './samples/E4.mp3',
+  './samples/E5.mp3',
+  './samples/Fs2.mp3',
+  './samples/Fs3.mp3',
+  './samples/Fs4.mp3',
+  './samples/Fs5.mp3',
+  './samples/Gs2.mp3',
+  './samples/Gs4.mp3',
+  './samples/Gs5.mp3'
 ];
 
 self.addEventListener('install', e => {

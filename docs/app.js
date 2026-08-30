@@ -1,7 +1,7 @@
 /* Runtime de la webapp del curso de guitarra.
-   No modifica el contenido del curso: agrega audio (cuerdas de nylon por
-   síntesis Karplus-Strong), metrónomo, demos interactivas, canciones,
-   referencia de acordes/notas y persistencia de estado. */
+   No modifica el contenido del curso: agrega audio (muestras de guitarra
+   nylon real, con fallback a síntesis Karplus-Strong), metrónomo, demos
+   interactivas, canciones, referencia de acordes/notas y persistencia. */
 'use strict';
 
 window.__gcerr = [];
@@ -30,6 +30,7 @@ function audio() {
     lp.frequency.value = 4500;
     master.connect(lp);
     lp.connect(ctx.destination);
+    Object.keys(sampleRaw).forEach(m => decodeSample(+m));
   }
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
@@ -38,6 +39,37 @@ function audio() {
   document.addEventListener(ev, () => { if (ctx && ctx.state === 'suspended') ctx.resume(); }, { passive: true }));
 
 function midiFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+
+/* Muestras de guitarra nylon real (VSCO2 Community Edition, dominio público):
+   una nota grabada cada ~2 semitonos; las intermedias se afinan con playbackRate.
+   Si aún no cargaron (o falló la red y no hay cache), pluck() cae al Karplus-Strong. */
+const SAMPLE_MIDI = { E2: 40, Fs2: 42, Gs2: 44, B2: 47, Cs3: 49, E3: 52, Fs3: 54, A3: 57, B3: 59, Cs4: 61, E4: 64, Fs4: 66, Gs4: 68, B4: 71, Cs5: 73, E5: 76, Fs5: 78, Gs5: 80, As5: 82 };
+const sampleRaw = {};  // midi → ArrayBuffer a la espera de un AudioContext
+const sampleBuf = {};  // midi → AudioBuffer decodificado
+function fetchSamples() {
+  Object.entries(SAMPLE_MIDI).forEach(([name, midi]) => {
+    fetch('samples/' + name + '.mp3')
+      .then(r => (r.ok ? r.arrayBuffer() : null))
+      .then(ab => { if (ab) { sampleRaw[midi] = ab; if (ctx) decodeSample(midi); } })
+      .catch(() => {});
+  });
+}
+function decodeSample(midi) {
+  const ab = sampleRaw[midi];
+  if (!ab) return;
+  delete sampleRaw[midi];
+  ctx.decodeAudioData(ab, buf => { sampleBuf[midi] = buf; }, () => {});
+}
+function nearestSample(midi) {
+  let best = null, bd = 1e9;
+  for (const k in sampleBuf) {
+    const d = Math.abs(+k - midi);
+    if (d < bd) { bd = d; best = +k; }
+  }
+  return bd <= 4 ? best : null; // no estirar una muestra más de 4 semitonos
+}
+fetchSamples();
+window.__gcaudio = () => ({ pendientes: Object.keys(sampleRaw).length, decodificadas: Object.keys(sampleBuf).length, ctx: !!ctx });
 
 // cuerda pulsada por Karplus-Strong, con ruido inicial suavizado (timbre nylon)
 function pluckBuf(midi) {
@@ -68,9 +100,16 @@ function pluck(midi, when, vel) {
   audio();
   const t = Math.max(when || 0, ctx.currentTime);
   const src = ctx.createBufferSource();
-  src.buffer = pluckBuf(midi);
   const g = ctx.createGain();
-  g.gain.value = 0.55 * (vel == null ? 1 : vel);
+  const base = nearestSample(midi);
+  if (base != null) {
+    src.buffer = sampleBuf[base];
+    src.playbackRate.value = Math.pow(2, (midi - base) / 12);
+    g.gain.value = 0.8 * (vel == null ? 1 : vel);
+  } else {
+    src.buffer = pluckBuf(midi);
+    g.gain.value = 0.55 * (vel == null ? 1 : vel);
+  }
   src.connect(g); g.connect(master);
   src.start(t);
   liveNodes.push(src);

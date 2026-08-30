@@ -45,13 +45,19 @@ def main():
     for name in ("app.css", "app.js", "manifest.webmanifest"):
         shutil.copy(ASSETS / name, DOCS / name)
 
+    # muestras de guitarra (VSCO2 CE, dominio público) → docs/samples/
+    samples = sorted((ASSETS / "samples").glob("*.mp3"))
+    (DOCS / "samples").mkdir(exist_ok=True)
+    for p in samples:
+        shutil.copy(p, DOCS / "samples" / p.name)
+
     icons = DOCS / "icons"
     if not (icons / "icon-512.png").exists():
         subprocess.run([sys.executable, str(ROOT / "tools" / "make_icons.py")], check=True)
 
     # versión = hash del contenido que cachea el SW
     h = hashlib.sha1()
-    for p in [ORIGINAL, ASSETS / "app.css", ASSETS / "app.js", ASSETS / "sw.js"]:
+    for p in [ORIGINAL, ASSETS / "app.css", ASSETS / "app.js", ASSETS / "sw.js"] + samples:
         h.update(p.read_bytes())
     version = h.hexdigest()[:10]
 
@@ -79,7 +85,13 @@ def main():
     html = html.replace("</body>", BODY_INJECT.format(v=version) + "</body>", 1)
     (DOCS / "index.html").write_text(html, encoding="utf-8")
 
-    sw = (ASSETS / "sw.js").read_text(encoding="utf-8").replace("__VERSION__", version)
+    sample_list = "".join(f",\n  './samples/{p.name}'" for p in samples)
+    sw = (
+        (ASSETS / "sw.js")
+        .read_text(encoding="utf-8")
+        .replace("__VERSION__", version)
+        .replace("/* __SAMPLE_ASSETS__ */", sample_list)
+    )
     (DOCS / "sw.js").write_text(sw, encoding="utf-8")
 
     total = sum(p.stat().st_size for p in DOCS.rglob("*") if p.is_file())

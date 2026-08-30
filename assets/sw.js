@@ -9,7 +9,7 @@ const ASSETS = [
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/apple-touch-icon.png'/* __SAMPLE_ASSETS__ */
 ];
 
 self.addEventListener('install', e => {

@@ -21,7 +21,9 @@ python3 -m http.server 8765 -d docs   # abrir http://localhost:8765
   sesión de hoy», acceso al calendario de progreso y al envío de feedback.
 - **Offline**: service worker cache-first; instalable en iPhone/iPad (Añadir a pantalla de inicio).
 - **Estado**: retoma el último día visto; días completados con ✓ y fecha (localStorage).
-- **Sonido**: cuerdas de nylon por síntesis Karplus-Strong (sin samples, todo offline).
+- **Sonido**: muestras de guitarra nylon real (VSCO2 Community Edition, dominio público;
+  19 notas en `assets/samples/`, las intermedias se afinan por playbackRate), con fallback
+  a síntesis Karplus-Strong si aún no cargaron. Todo offline (el SW las precachea).
   Tocar cualquier diagrama de acorde lo hace sonar; las demos tocan las notas del ejercicio,
   con patrón de rasgueo detectado del texto (abajo-arriba, síncopa, 6/8, 12/8, arpegio) y
   BPM ajustable por demo.
