@@ -1,0 +1,148 @@
+/* Runtime de la webapp — se suma al design system del curso (paleta --ink/--green/--paper). */
+
+body{padding-bottom:calc(64px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+main{padding-top:max(2px,env(safe-area-inset-top))}
+
+/* ---- barra de pestañas ---- */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;justify-content:space-around;
+  background:#ffffffee;backdrop-filter:blur(10px);border-top:1px solid var(--line);
+  padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+.tabbar button{flex:1;max-width:170px;background:none;border:none;color:var(--muted);font-weight:700;
+  font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;border-radius:10px}
+.tabbar button .ico{font-size:20px;line-height:1}
+.tabbar button.active{color:var(--green);background:var(--soft)}
+
+/* ---- vistas ---- */
+body[data-view="songs"] .hero,body[data-view="songs"] .intro,body[data-view="songs"] .controls,
+body[data-view="songs"] .day,body[data-view="songs"] .sources,
+body[data-view="ref"] .hero,body[data-view="ref"] .intro,body[data-view="ref"] .controls,
+body[data-view="ref"] .day,body[data-view="ref"] .sources{display:none!important}
+.view{display:none;background:white;border:1px solid var(--line);border-radius:18px;padding:19px;margin-top:8px}
+body[data-view="songs"] #view-songs{display:block}
+body[data-view="ref"] #view-ref{display:block}
+
+/* ---- refinamiento gráfico del curso ---- */
+.day,.intro,.view{box-shadow:0 1px 2px #17212b0a}
+.chord{transition:box-shadow .15s,transform .05s;cursor:pointer;position:relative;background:white}
+.chord:active{transform:scale(.97)}
+.chord.playing{box-shadow:0 0 0 2px var(--green)}
+.chord::after{content:"♪";position:absolute;top:4px;right:7px;font-size:11px;color:var(--green);opacity:.65}
+.exhead span{box-shadow:inset 0 -2px 0 #00000022}
+summary::-webkit-details-marker{display:none}
+summary{list-style:none;position:relative;padding-right:34px}
+summary::after{content:"▾";position:absolute;right:13px;color:var(--muted);transition:transform .2s}
+details[open] summary::after{transform:rotate(180deg)}
+.daydone{margin-left:auto;border:1px solid var(--line);background:white;color:var(--green);border-radius:9px;
+  padding:8px 12px;font-weight:750;white-space:nowrap}
+.daydone.done{background:var(--green);color:white;border-color:var(--green)}
+.dayhead{display:flex;align-items:flex-start;gap:10px}
+.dayhead>div:first-child{flex:1}
+
+/* ---- demo de ejercicio ---- */
+.demo{border:1px dashed var(--line);border-radius:11px;padding:10px;margin:10px 0;background:#fbfcfc}
+.demo .demorow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.demo .play{min-width:44px;height:38px;border-radius:9px}
+.demo .play.playing{background:var(--green)}
+.demo .demolabel{font-size:13px;color:var(--muted);flex:1;min-width:120px}
+.demo .stopbtn{background:white;color:var(--ink);min-width:44px;height:38px;border-radius:9px}
+
+/* ---- diapasón interactivo ---- */
+.fbwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:9px}
+.fb{min-width:560px;display:block}
+.fb .fb-string{stroke:#596269}
+.fb .fb-fret{stroke:#c3cac7;stroke-width:1.5}
+.fb .fb-nut{stroke:#596269;stroke-width:5}
+.fb .fb-dotmark{fill:#e3e9e6}
+.fb .fb-note{fill:var(--green);cursor:pointer}
+.fb .fb-note.dim{fill:#9db4ac}
+.fb .fb-note.flash{fill:#17212b}
+.fb .fb-hit{fill:transparent;cursor:pointer}
+.fb text{font-size:10px;fill:var(--muted);font-family:inherit}
+.fb .fb-notelbl{fill:white;font-size:9.5px;font-weight:700;pointer-events:none}
+
+/* ---- metrónomo ---- */
+.metfab{position:fixed;right:12px;bottom:calc(70px + env(safe-area-inset-bottom));z-index:41;width:52px;height:52px;
+  border-radius:50%;font-size:22px;box-shadow:0 4px 14px #17212b40;border:none;display:grid;place-items:center}
+.metfab.on{background:var(--green);animation:metpulse 1s infinite}
+@keyframes metpulse{0%{box-shadow:0 0 0 0 #2f5d5066}70%{box-shadow:0 0 0 12px #2f5d5000}100%{box-shadow:0 0 0 0 #2f5d5000}}
+.metpanel{position:fixed;right:12px;bottom:calc(130px + env(safe-area-inset-bottom));z-index:42;background:white;
+  border:1px solid var(--line);border-radius:14px;padding:14px;width:240px;box-shadow:0 10px 30px #17212b33;display:none}
+.metpanel.open{display:block}
+.metpanel h4{margin:0 0 8px;color:var(--ink)}
+.metrow{display:flex;align-items:center;gap:8px;margin:8px 0}
+.metrow input[type=range]{flex:1;accent-color:var(--green)}
+.metrow .bpmval{font-weight:800;color:var(--ink);min-width:56px;text-align:center;font-size:18px}
+.metrow button{width:38px;height:38px;border-radius:9px;padding:0}
+.metrow select{flex:1}
+.metstart{width:100%;padding:11px;border-radius:10px;font-size:15px}
+.metstart.on{background:var(--green)}
+.metbeat{display:flex;gap:5px;margin-top:9px;justify-content:center}
+.metbeat i{width:9px;height:9px;border-radius:50%;background:#dce2df}
+.metbeat i.hit{background:var(--green)}
+.metbeat i.acc.hit{background:var(--ink)}
+
+/* ---- canciones ---- */
+.songcard{border:1px solid var(--line);border-radius:12px;padding:13px;margin:10px 0;background:#fbfcfc}
+.songcard h3{margin:0;color:var(--ink)}
+.songcard .songmeta{font-size:13px;color:var(--muted);margin:3px 0 8px}
+.songbody{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;line-height:1.45;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:pre;padding:4px 0}
+.songbody .chline{color:var(--green);font-weight:700}
+.songbody .chtok{cursor:pointer;border-radius:4px;padding:0 1px}
+.songbody .chtok:active,.songbody .chtok.playing{background:var(--soft);outline:1px solid var(--green)}
+.songactions{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.songactions button{padding:7px 11px;font-size:13px}
+.songactions .ghost{background:white;color:var(--ink)}
+.songactions .danger{background:white;color:#a13d3d;border-color:#e2c7c7}
+.songedit{width:100%;min-height:170px;font-family:ui-monospace,Menlo,monospace;font-size:13px;border:1px solid var(--line);
+  border-radius:9px;padding:9px;margin-top:8px;box-sizing:border-box}
+.songhint{font-size:13px;color:var(--muted);background:var(--soft);border-radius:9px;padding:9px 11px}
+
+/* ---- referencia ---- */
+.refsearch{width:100%;box-sizing:border-box;padding:11px;border:1px solid var(--line);border-radius:10px;
+  font-size:16px;background:white;margin:9px 0}
+.refchords{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:9px}
+.notebtns{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}
+.notebtns button{background:white;color:var(--ink);padding:8px 11px;border-radius:9px;font-size:14px}
+.notebtns button.active{background:var(--green);color:white;border-color:var(--green)}
+.refblock{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.refblock h3{color:var(--ink);margin:0 0 4px}
+
+/* ---- modo sesión ---- */
+.sessgo{border:1px solid var(--green);background:var(--green);color:white;border-radius:9px;
+  padding:8px 12px;font-weight:750;white-space:nowrap}
+body.insession .tabbar,body.insession .metfab,body.insession .metpanel{display:none!important}
+body.insession{overflow:hidden}
+.session{position:fixed;inset:0;z-index:60;background:var(--paper);display:flex;flex-direction:column}
+.sesshead{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+  background:var(--ink);color:white}
+.sessclose{background:#ffffff22;color:white;border:none;width:38px;height:38px;border-radius:50%;font-size:16px}
+.sesstitle{flex:1;min-width:0}
+.sesstitle b{display:block;font-size:16px}
+.sesstitle small{color:#c8d1d7;font-size:11px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sesstime{font-variant-numeric:tabular-nums;font-size:26px;font-weight:800;color:#dce3e7}
+.sesstime.running{color:#8fd4bf}
+.sesscontent{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 10px}
+.sesscontent .exercise{border-top:none;padding-top:2px}
+.sessfoot{display:flex;gap:9px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+  background:#ffffffee;border-top:1px solid var(--line)}
+.sessfoot button{border-radius:11px;height:50px;font-size:16px}
+.sessprev,.sessnext{width:58px;background:white;color:var(--ink)}
+.sessprev:disabled{opacity:.35}
+.sesstimerbtn{flex:1}
+.sessmet{width:58px;background:white;color:var(--ink);font-size:20px}
+.sessmet.on{background:var(--green);color:white;border-color:var(--green);animation:metpulse 1s infinite}
+.sessbanner{display:none;align-items:center;gap:9px;padding:11px 14px;background:var(--green);color:white;font-weight:800}
+.sessbanner button{background:#ffffff;color:var(--green);border:none;border-radius:9px;padding:10px 13px;font-weight:800}
+.sessbanner span{flex:1;font-size:17px}
+.session.timeup .sessbanner{display:flex;animation:bannerflash .8s ease-in-out infinite}
+.session.timeup .sesshead{animation:bannerflash .8s ease-in-out infinite}
+@keyframes bannerflash{0%,100%{filter:brightness(1)}50%{filter:brightness(1.55)}}
+.sessdone{text-align:center;padding:40px 10px}
+.sessdone h2{color:var(--ink)}
+.sessdone .sessfinish{margin-top:12px;padding:13px 18px;border-radius:11px;font-size:16px;background:var(--green);border-color:var(--green)}
+
+@media(max-width:650px){
+  .dayhead{flex-wrap:wrap}
+  .daydone{margin-left:0}
+}
