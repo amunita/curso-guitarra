@@ -231,6 +231,8 @@ body.insession{overflow:hidden}
 .needle{position:absolute;left:50%;bottom:34px;width:3px;height:86px;background:var(--ink);border-radius:2px;
   transform-origin:bottom center;transition:transform .12s ease-out;margin-left:-1.5px}
 .tungauge.intune .needle{background:var(--green)}
+/* lectura retenida (sin señal hace >1 s): se atenúa pero no vuelve a cero */
+#view-tuner.stale .needle,#view-tuner.stale .tunnote,#view-tuner.stale .tuncents{opacity:.45}
 .tunnote{position:absolute;left:0;right:0;bottom:26px;text-align:center;font-size:24px;font-weight:800;color:var(--ink)}
 .tuncents{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:13px;color:var(--muted)}
 .tunon{padding:11px 16px;border-radius:10px;font-size:15px}

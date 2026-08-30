@@ -1273,6 +1273,8 @@ async function tunerStart() {
   src.connect(tuner.an);
   tuner.buf = new Float32Array(tuner.an.fftSize);
   tuner.on = true;
+  tuner.lastAt = 0;
+  view.classList.remove('stale');
   view.querySelector('.tunerr').textContent = '';
   tunerLoop();
   return true;
@@ -1302,13 +1304,21 @@ function renderTuner(f) {
   const centsEl = view.querySelector('.tuncents');
   const gauge = view.querySelector('.tungauge');
   if (f < 0) {
+    tuner.okSince = 0; tuner.dinged = false;
+    // sin señal: la última lectura queda pegada hasta el próximo sonido;
+    // tras 1 s se atenúa para indicar que es una lectura retenida
+    if (tuner.lastAt) {
+      if (performance.now() - tuner.lastAt > 1000) view.classList.add('stale');
+      return;
+    }
     noteEl.textContent = '—';
     centsEl.textContent = 'toca una cuerda';
     needle.style.transform = 'rotate(0deg)';
     gauge.classList.remove('intune');
-    tuner.okSince = 0; tuner.dinged = false;
     return;
   }
+  tuner.lastAt = performance.now();
+  view.classList.remove('stale');
   let si = tuner.lock;
   if (si < 0) { // AUTO: cuerda más cercana
     let bd = 1e9;
