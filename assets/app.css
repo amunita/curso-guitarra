@@ -16,10 +16,16 @@ main{padding-top:max(2px,env(safe-area-inset-top))}
 body[data-view="songs"] .hero,body[data-view="songs"] .intro,body[data-view="songs"] .controls,
 body[data-view="songs"] .day,body[data-view="songs"] .sources,
 body[data-view="ref"] .hero,body[data-view="ref"] .intro,body[data-view="ref"] .controls,
-body[data-view="ref"] .day,body[data-view="ref"] .sources{display:none!important}
+body[data-view="ref"] .day,body[data-view="ref"] .sources,
+body[data-view="hoy"] .hero,body[data-view="hoy"] .intro,body[data-view="hoy"] .controls,
+body[data-view="hoy"] .day,body[data-view="hoy"] .sources,
+body[data-view="tuner"] .hero,body[data-view="tuner"] .intro,body[data-view="tuner"] .controls,
+body[data-view="tuner"] .day,body[data-view="tuner"] .sources{display:none!important}
 .view{display:none;background:white;border:1px solid var(--line);border-radius:18px;padding:19px;margin-top:8px}
 body[data-view="songs"] #view-songs{display:block}
 body[data-view="ref"] #view-ref{display:block}
+body[data-view="hoy"] #view-hoy{display:block}
+body[data-view="tuner"] #view-tuner{display:block}
 
 /* ---- refinamiento gráfico del curso ---- */
 .day,.intro,.view{box-shadow:0 1px 2px #17212b0a}
@@ -142,7 +148,94 @@ body.insession{overflow:hidden}
 .sessdone h2{color:var(--ink)}
 .sessdone .sessfinish{margin-top:12px;padding:13px 18px;border-radius:11px;font-size:16px;background:var(--green);border-color:var(--green)}
 
+.sessdots{display:flex;gap:5px;justify-content:center;padding:8px 14px 0;flex-wrap:wrap}
+.sessdots i{width:8px;height:8px;border-radius:50%;background:#dce2df}
+.sessdots i.past{background:#9db4ac}
+.sessdots i.cur{background:var(--green);box-shadow:0 0 0 3px #2f5d5033}
+.sessnotes{width:100%;max-width:420px;min-height:84px;box-sizing:border-box;margin-top:14px;
+  border:1px solid var(--line);border-radius:10px;padding:10px;font-family:inherit;font-size:14px}
+
+/* ---- mejoras gráficas de acordes ---- */
+.fingnum{font-size:9px;font-weight:800;fill:#ffffff;pointer-events:none}
+.chnotes{font-size:11px;color:var(--muted);text-align:center;padding:1px 0 4px;letter-spacing:.4px}
+
+/* ---- BPM por demo ---- */
+.demobpm{display:flex;align-items:center;gap:4px}
+.demobpm b{min-width:34px;text-align:center;font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums}
+.demobpm button{width:32px;height:32px;padding:0;border-radius:8px;background:white;color:var(--ink);border:1px solid var(--line)}
+
+/* ---- notas del día ---- */
+.daynotes{margin-top:16px;border-top:1px dashed var(--line);padding-top:11px}
+.daynotes h4{margin:0 0 6px;color:var(--ink);font-size:14px}
+.daynotes textarea{width:100%;min-height:74px;box-sizing:border-box;border:1px solid var(--line);
+  border-radius:10px;padding:10px;font-family:inherit;font-size:14px;background:#fbfcfc}
+
+/* ---- calendario de progreso ---- */
+.progbtn{background:white;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+.progmodal{position:fixed;inset:0;z-index:70;background:#17212b99;display:grid;place-items:center;padding:16px}
+.progcard{background:white;border-radius:18px;padding:18px;max-width:430px;width:100%;max-height:86vh;
+  overflow-y:auto;position:relative;box-shadow:0 18px 50px #17212b55}
+.progcard h3{margin:0 0 10px;color:var(--ink)}
+.progclose{position:absolute;top:11px;right:11px;width:34px;height:34px;border-radius:50%;background:var(--soft);
+  color:var(--ink);border:none;font-size:14px}
+.progstats{display:flex;gap:8px;margin-bottom:12px}
+.progstats>div{flex:1;background:var(--soft);border-radius:11px;padding:9px;text-align:center}
+.progstats b{display:block;font-size:20px;color:var(--ink)}
+.progstats span{font-size:11px;color:var(--muted)}
+.proggrid{display:grid;grid-template-columns:repeat(14,1fr);gap:4px}
+.proggrid i{aspect-ratio:1;border-radius:4px;background:#e7ebe9;cursor:pointer}
+.proggrid i.done{background:var(--green)}
+.proggrid i.cur{box-shadow:0 0 0 2px var(--ink) inset}
+
+/* ---- afinador ---- */
+.tungauge{position:relative;height:150px;margin:14px auto 6px;max-width:340px;border-radius:16px;
+  background:#fbfcfc;border:1px solid var(--line);overflow:hidden;transition:background .25s,border-color .25s}
+.tungauge.intune{background:#e8f4ee;border-color:var(--green)}
+.tunscale{position:absolute;left:0;right:0;top:12px;display:flex;justify-content:space-between;padding:0 26px}
+.tunscale i{width:2px;height:10px;background:#c3cac7;border-radius:1px}
+.tunscale i:nth-child(5){height:16px;background:var(--green);width:3px}
+.needle{position:absolute;left:50%;bottom:34px;width:3px;height:86px;background:var(--ink);border-radius:2px;
+  transform-origin:bottom center;transition:transform .12s ease-out;margin-left:-1.5px}
+.tungauge.intune .needle{background:var(--green)}
+.tunnote{position:absolute;left:0;right:0;bottom:26px;text-align:center;font-size:24px;font-weight:800;color:var(--ink)}
+.tuncents{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:13px;color:var(--muted)}
+.tunon{padding:11px 16px;border-radius:10px;font-size:15px}
+.tunerr{color:#a13d3d;font-size:13px;margin:8px 0;text-align:center}
+.tunstr{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
+.tunstr button{background:white;color:var(--ink);border:1px solid var(--line);border-radius:10px;
+  padding:9px 2px;font-weight:800;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:1px}
+.tunstr button small{font-size:9.5px;color:var(--muted);font-weight:600}
+.tunstr button.active{background:var(--ink);color:white;border-color:var(--ink)}
+.tunstr button.active small{color:#c8d1d7}
+.tunstr button.near{box-shadow:0 0 0 2px var(--green)}
+
+/* ---- respaldo ---- */
+.bakrow{display:flex;gap:8px;flex-wrap:wrap}
+.bakrow .ghost{background:white;color:var(--ink)}
+
+/* ---- inicio (Hoy) ---- */
+.homehead{display:flex;align-items:center;gap:16px}
+.homering{position:relative;width:96px;height:96px;flex:none}
+.homering svg{width:96px;height:96px}
+.ringbg{fill:none;stroke:#e7ebe9;stroke-width:7}
+.ringfg{fill:none;stroke:var(--green);stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset .6s}
+.ringtxt{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.ringtxt b{font-size:22px;color:var(--ink);line-height:1}
+.ringtxt span{font-size:11px;color:var(--muted)}
+.homestats h2{margin:0 0 4px;color:var(--ink)}
+.homestreak{font-size:15px;color:var(--ink)}
+.homestreak b{color:var(--green)}
+.homepct{font-size:13px;color:var(--muted);margin-top:2px}
+.todaycard{margin-top:16px;border:1px solid var(--line);border-radius:14px;padding:15px;background:#fbfcfc}
+.todaycard h3{margin:4px 0 12px;color:var(--ink)}
+.homego{width:100%;padding:14px;border-radius:12px;font-size:16px;background:var(--green);border:1px solid var(--green);color:white;font-weight:800}
+.homeread{width:100%;margin-top:8px;padding:11px;border-radius:12px;background:white;color:var(--ink);border:1px solid var(--line)}
+.homerow{display:flex;gap:8px;margin-top:14px}
+.homerow button{flex:1;padding:12px;border-radius:12px;background:white;color:var(--ink);border:1px solid var(--line);font-weight:700}
+.homefoot{margin-top:8px}
+
 @media(max-width:650px){
   .dayhead{flex-wrap:wrap}
   .daydone{margin-left:0}
+  .proggrid{grid-template-columns:repeat(13,1fr)}
 }

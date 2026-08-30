@@ -158,6 +158,68 @@ function baseChordName(name) {
   return m ? m[1] + (m[2] || '') : '';
 }
 
+/* Digitación estándar por acorde: {nº de cuerda: dedo} (1=índice … 4=meñique, T=pulgar).
+   Aprobado por Andrés (VB 2026-08-30) como mejora gráfica de los diagramas. */
+const FINGERING = {
+  'A':    { 4: '1', 3: '2', 2: '3' },
+  'Am':   { 4: '2', 3: '3', 2: '1' },
+  'Bm':   { 5: '1', 4: '3', 3: '4', 2: '2', 1: '1' },
+  'C':    { 5: '3', 4: '2', 2: '1' },
+  'D':    { 3: '1', 2: '3', 1: '2' },
+  'D/F#': { 6: 'T', 3: '1', 2: '3', 1: '2' },
+  'Dm':   { 3: '2', 2: '3', 1: '1' },
+  'E':    { 5: '2', 4: '3', 3: '1' },
+  'Em':   { 5: '2', 4: '3' },
+  'F':    { 6: '1', 5: '3', 4: '4', 3: '2', 2: '1', 1: '1' },
+  'G':    { 6: '3', 5: '2', 1: '4' },
+  'G/B':  { 5: '2', 1: '3' }
+};
+const PC_LAT = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
+function decorateChordDiv(div) {
+  if (div.dataset.gcdec) return;
+  div.dataset.gcdec = '1';
+  const svg = div.querySelector('svg');
+  const nameEl = div.querySelector('b');
+  if (!svg || !nameEl) return;
+  const name = nameEl.textContent.trim();
+  const fing = FINGERING[name];
+  const parsed = parseChordDiv(div);
+  if (!parsed) return;
+  const NS = 'http://www.w3.org/2000/svg';
+  if (fing) {
+    svg.querySelectorAll('circle.dot').forEach(c => {
+      const i = nearestString(+c.getAttribute('cx'));
+      if (i < 0) return;
+      const f = fing[6 - i];
+      if (!f) return;
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', c.getAttribute('cx'));
+      t.setAttribute('y', +c.getAttribute('cy') + 3.4);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('class', 'fingnum');
+      t.textContent = f;
+      svg.appendChild(t);
+    });
+  }
+  // notas del acorde (únicas, desde el bajo): C = Do·Mi·Sol
+  const seen = new Set(), pcs = [];
+  chordMidis(parsed.frets).forEach(m => {
+    const pc = m % 12;
+    if (!seen.has(pc)) { seen.add(pc); pcs.push(PC_LAT[pc]); }
+  });
+  if (pcs.length) {
+    const d = document.createElement('div');
+    d.className = 'chnotes';
+    d.textContent = pcs.join('·');
+    div.appendChild(d);
+  }
+}
+function decorateChords(root) {
+  (root || document).querySelectorAll('.chord').forEach(div => {
+    try { decorateChordDiv(div); } catch (e) { window.__gcerr.push('dec: ' + e.message); }
+  });
+}
+
 /* ===================== metrónomo (estilo Moises) ===================== */
 const SIGS = { '2/4': 2, '3/4': 3, '4/4': 4, '5/4': 5, '6/8': 6, '12/8': 12 };
 const met = Object.assign({ bpm: 60, sig: '4/4', on: false, next: 0, count: 0, timer: null }, load('gc:met', {}));
@@ -220,10 +282,11 @@ function stopPlayback() {
   stopAllSound();
   document.querySelectorAll('.play.playing').forEach(b => { b.classList.remove('playing'); b.textContent = '▶'; });
 }
-// events: [{midis:[..], vel, fbKey}] — un evento por pulso
+// events: [{at, midis:[..], vel, strumMs, fb}] — `at` en pulsos (puede ser fraccionario)
 function playEvents(events, bpm, sigBeats, btn, onBeatFlash) {
   audio();
   stopPlayback();
+  if (!events.length) return;
   const id = playSession;
   const spb = 60 / bpm;
   const useMet = met.on;             // metrónomo activado → count-in + clic durante la demo
@@ -233,19 +296,73 @@ function playEvents(events, bpm, sigBeats, btn, onBeatFlash) {
   if (useMet) {
     for (let b = 0; b < sigBeats; b++) { click(t, b === 0); flashBeat(b, (t - ctx.currentTime) * 1000); t += spb; }
   }
-  events.forEach((ev, i) => {
-    const when = t + i * spb;
-    if (useMet) { click(when, (i % sigBeats) === 0); flashBeat(i % sigBeats, (when - ctx.currentTime) * 1000); }
-    ev.midis.forEach((m, k) => pluck(m, when + k * 0.035, ev.vel));
-    if (onBeatFlash) setTimeout(() => { if (id === playSession) onBeatFlash(ev, i); }, (when - ctx.currentTime) * 1000);
+  const lastAt = Math.max.apply(null, events.map(e => e.at));
+  if (useMet) {
+    for (let b = 0; b <= Math.ceil(lastAt); b++) {
+      const when = t + b * spb;
+      click(when, (b % sigBeats) === 0);
+      flashBeat(b % sigBeats, (when - ctx.currentTime) * 1000);
+    }
+  }
+  events.forEach(ev => {
+    const when = t + ev.at * spb;
+    const stag = (ev.strumMs == null ? 35 : ev.strumMs) / 1000;
+    ev.midis.forEach((m, k) => pluck(m, when + k * stag, ev.vel));
+    if (onBeatFlash) setTimeout(() => { if (id === playSession) onBeatFlash(ev); }, (when - ctx.currentTime) * 1000);
   });
-  const end = t + events.length * spb + 0.4;
+  const end = t + (lastAt + 1) * spb + 0.4;
   if (btn) { btn.classList.add('playing'); btn.textContent = '…'; }
   setTimeout(() => {
     if (id !== playSession) return;
     if (btn) { btn.classList.remove('playing'); btn.textContent = '▶'; }
     if (wasRunning) metStart();
   }, (end - ctx.currentTime) * 1000);
+}
+/* Patrones de rasgueo/arpegio por compás. D = abajo (grave→agudo), U = arriba (agudo→grave). */
+function barPattern(kind, midis, beats, at0) {
+  const top = n => midis.slice(-n);
+  const D = (at, vel, n) => ({ at: at0 + at, midis: n ? top(n) : midis, vel });
+  const U = (at, vel) => ({ at: at0 + at, midis: top(4).slice().reverse(), vel, strumMs: 28 });
+  switch (kind) {
+    case 'du': {
+      const ev = [];
+      for (let b = 0; b < beats; b++) { ev.push(D(b, b === 0 ? 0.95 : 0.6)); ev.push(U(b + 0.5, 0.4)); }
+      return ev;
+    }
+    case 'sync':
+      return [D(0, 0.95), D(1, 0.65), U(1.5, 0.45), U(2.5, 0.45), D(3, 0.65), U(3.5, 0.45)];
+    case 'b6':
+      return [D(0, 0.95), D(1, 0.35, 3), D(2, 0.35, 3), D(3, 0.7), D(4, 0.35, 3), D(5, 0.35, 3)];
+    case 'b12': {
+      const ev = [];
+      for (let b = 0; b < 12; b++) {
+        if (b === 0) ev.push(D(0, 0.95));
+        else if (b % 3 === 0) ev.push(D(b, 0.6));
+        else ev.push(D(b, 0.3, 3));
+      }
+      return ev;
+    }
+    case 'arp': {
+      const ev = [{ at: at0, midis: [midis[0]], vel: 0.9 }];
+      const rest = top(Math.min(3, midis.length - 1));
+      for (let b = 1; b < beats; b++) ev.push({ at: at0 + b, midis: [rest[(b - 1) % rest.length]], vel: 0.7 });
+      return ev;
+    }
+    default: {
+      const ev = [D(0, 0.95)];
+      for (let b = 1; b < beats; b++) ev.push(D(b, 0.4, 3));
+      return ev;
+    }
+  }
+}
+const PATTERN_NAMES = { du: 'abajo-arriba', sync: 'síncopa', b6: '6/8', b12: '12/8 balada', arp: 'arpegio', pulse: 'pulso' };
+function detectPattern(text, sig) {
+  if (/p-i-m-a|arpegi/i.test(text)) return 'arp';
+  if (/s[ií]ncopa/i.test(text)) return 'sync';
+  if (sig === '12/8') return 'b12';
+  if (sig === '6/8') return 'b6';
+  if (/corchea|abajo-arriba|abajo y arriba/i.test(text)) return 'du';
+  return 'pulse';
 }
 
 /* ===================== diapasón interactivo ===================== */
@@ -347,13 +464,14 @@ function parseExercise(ex) {
     if (s >= 1 && s <= 6)
       return { type: 'seq', string: s, frets: [0, 0, 0, 0], bpm, sig, label: `${s}ª cuerda al aire` };
   }
+  const pattern = detectPattern(text, sig);
   const prog = findProgression(text);
-  if (prog) return { type: 'prog', chords: prog, bpm, sig, label: prog.join(' – ') };
+  if (prog) return { type: 'prog', chords: prog, bpm, sig, pattern, label: prog.join(' – ') };
   const divChords = [...ex.querySelectorAll('.chord')]
     .map(d => (d.querySelector('b') || {}).textContent).map(n => (n || '').trim()).filter(n => CHORDS[n]);
   if (divChords.length) {
     const uniq = [...new Set(divChords)];
-    return { type: 'prog', chords: uniq, bpm, sig, label: uniq.join(' – ') };
+    return { type: 'prog', chords: uniq, bpm, sig, pattern, label: uniq.join(' – ') };
   }
   return null;
 }
@@ -364,15 +482,12 @@ function specEvents(spec) {
     const up = spec.frets.map(f => ({ midis: [OPEN_MIDI[spec.string - 1] + f], fb: { s: spec.string, f } }));
     const down = up.slice(0, -1).reverse();
     const seq = spec.frets.length > 2 ? up.concat(down) : up.concat(up);
-    seq.forEach(e => evs.push(e));
+    seq.forEach((e, i) => evs.push(Object.assign({ at: i, vel: 0.85 }, e)));
   } else {
-    spec.chords.forEach(name => {
+    spec.chords.forEach((name, ci) => {
       const c = CHORDS[name];
       if (!c) return;
-      const midis = chordMidis(c.frets);
-      for (let b = 0; b < beats; b++) {
-        evs.push(b === 0 ? { midis, vel: 0.95 } : { midis: midis.slice(-3), vel: 0.4 });
-      }
+      barPattern(spec.pattern || 'pulse', chordMidis(c.frets), beats, ci * beats).forEach(e => evs.push(e));
     });
   }
   return { events: evs, beats };
@@ -388,9 +503,18 @@ function buildDemoPanel(ex, spec) {
   stop.className = 'stopbtn'; stop.textContent = '■';
   const label = document.createElement('div');
   label.className = 'demolabel';
-  const bpmTxt = spec.bpm ? ` · ${spec.bpm} BPM` : '';
-  label.textContent = `Demo: ${spec.label}${bpmTxt}` + (spec.sig ? ` · ${spec.sig}` : '');
-  row.append(play, stop, label);
+  const patTxt = spec.type === 'prog' && spec.pattern && spec.pattern !== 'pulse'
+    ? ` · patrón ${PATTERN_NAMES[spec.pattern]}` : '';
+  label.textContent = `Demo: ${spec.label}` + (spec.sig ? ` · ${spec.sig}` : '') + patTxt;
+  // BPM ajustable por demo (parte del BPM que indica el ejercicio)
+  spec.bpm = spec.bpm || 60;
+  const bpmBox = document.createElement('div');
+  bpmBox.className = 'demobpm';
+  bpmBox.innerHTML = `<button class="bdn">−</button><b>${spec.bpm}</b><button class="bup">+</button>`;
+  const bpmVal = bpmBox.querySelector('b');
+  bpmBox.querySelector('.bdn').addEventListener('click', () => { spec.bpm = Math.max(30, spec.bpm - 5); bpmVal.textContent = spec.bpm; });
+  bpmBox.querySelector('.bup').addEventListener('click', () => { spec.bpm = Math.min(200, spec.bpm + 5); bpmVal.textContent = spec.bpm; });
+  row.append(play, stop, bpmBox, label);
   panel.append(row);
   let fb = null;
   if (spec.type === 'seq') {
@@ -424,6 +548,33 @@ function buildDemos(day) {
       if (spec) buildDemoPanel(ex, spec);
     } catch (e) { window.__gcerr.push('demo: ' + e.message); }
   });
+  decorateChords(day);
+  injectDayNotes(day);
+}
+
+/* ===================== notas personales por día ===================== */
+function getNotes() { return load('gc:notes', {}); }
+let noteTimer = null;
+function saveNote(dayNum, text) {
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => {
+    const n = getNotes();
+    const v = text.trim();
+    if (v) n[dayNum] = v; else delete n[dayNum];
+    store('gc:notes', n);
+  }, 400);
+}
+function injectDayNotes(day) {
+  if (day.querySelector('.daynotes')) return;
+  const n = DAYS.indexOf(day) + 1;
+  if (!n) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'daynotes';
+  wrap.innerHTML = '<h4>📝 Mis notas del día</h4><textarea placeholder="Qué costó, qué salió bien, dudas para después…"></textarea>';
+  const ta = wrap.querySelector('textarea');
+  ta.value = getNotes()[n] || '';
+  ta.addEventListener('input', () => saveNote(n, ta.value));
+  day.append(wrap);
 }
 
 /* ===================== curso: estado y navegación ===================== */
@@ -437,6 +588,28 @@ function gotoDay(i) {
   sel.dispatchEvent(new Event('change'));
 }
 function doneSet() { return new Set(load('gc:done', [])); }
+function isoToday() { return new Date().toISOString().slice(0, 10); }
+function markDayDone(n, on) {
+  const done = doneSet();
+  const dates = load('gc:doneDates', {});
+  if (on) { done.add(n); if (!dates[n]) dates[n] = isoToday(); }
+  else { done.delete(n); delete dates[n]; }
+  store('gc:done', [...done]);
+  store('gc:doneDates', dates);
+  renderDoneButtons();
+  renderHome();
+}
+// racha: días de calendario consecutivos con al menos un día del curso completado
+function streakDays() {
+  const dates = new Set(Object.values(load('gc:doneDates', {})));
+  if (!dates.size) return 0;
+  const d = new Date();
+  const iso = x => x.toISOString().slice(0, 10);
+  if (!dates.has(iso(d))) d.setDate(d.getDate() - 1); // hoy aún no practica: la racha no se pierde
+  let n = 0;
+  while (dates.has(iso(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
 function renderDoneButtons() {
   const done = doneSet();
   DAYS.forEach((d, i) => {
@@ -454,15 +627,9 @@ function injectDoneButtons() {
     const b = document.createElement('button');
     b.className = 'daydone';
     b.addEventListener('click', () => {
-      const done = doneSet();
-      const n = i + 1;
-      if (done.has(n)) done.delete(n);
-      else {
-        done.add(n);
-        if (i < DAYS.length - 1) setTimeout(() => gotoDay(i + 1), 350);
-      }
-      store('gc:done', [...done]);
-      renderDoneButtons();
+      const n = i + 1, was = doneSet().has(n);
+      markDayDone(n, !was);
+      if (!was && i < DAYS.length - 1) setTimeout(() => gotoDay(i + 1), 350);
     });
     head.append(b);
   });
@@ -481,14 +648,21 @@ function observeDays() {
 
 /* ===================== vistas / pestañas ===================== */
 function setView(v) {
+  if (document.body.dataset.view === 'tuner' && v !== 'tuner') {
+    tunerStop();
+    const b = document.querySelector('#view-tuner .tunon');
+    if (b) b.textContent = '🎙 Activar micrófono';
+  }
   document.body.dataset.view = v;
+  if (v === 'hoy') renderHome();
   document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
   window.scrollTo(0, 0);
 }
 function injectTabbar() {
   const bar = document.createElement('nav');
   bar.className = 'tabbar';
-  [['curso', '📖', 'Curso'], ['songs', '🎵', 'Canciones'], ['ref', '🎸', 'Referencia']].forEach(([v, ico, lbl]) => {
+  [['hoy', '🏠', 'Hoy'], ['curso', '📖', 'Curso'], ['songs', '🎵', 'Canciones'],
+   ['tuner', '🎯', 'Afinador'], ['ref', '🎸', 'Referencia']].forEach(([v, ico, lbl]) => {
     const b = document.createElement('button');
     b.dataset.view = v;
     b.innerHTML = `<span class="ico">${ico}</span>${lbl}`;
@@ -516,7 +690,7 @@ function injectMetronome() {
     <div class="metrow"><span class="bpmval">${met.bpm}</span><span style="color:var(--muted);font-size:13px">BPM</span>
       <select id="metsig">${Object.keys(SIGS).map(s => `<option${s === met.sig ? ' selected' : ''}>${s}</option>`).join('')}</select>
     </div>
-    <button class="metstart">▶ Iniciar</button>
+    <div class="metrow"><button class="metstart">▶ Iniciar</button><button class="mettap">TAP</button></div>
     <div class="metbeat"></div>`;
   document.body.append(fab, panel);
   fab.addEventListener('click', () => panel.classList.toggle('open'));
@@ -525,6 +699,18 @@ function injectMetronome() {
   panel.querySelector('#bpmup').addEventListener('click', () => { met.bpm = Math.min(200, met.bpm + 5); metSave(); metUI(); });
   panel.querySelector('#metsig').addEventListener('change', e => { met.sig = e.target.value; metSave(); metUI(); });
   panel.querySelector('.metstart').addEventListener('click', () => { met.on ? metStop() : metStart(); });
+  // tap tempo: promedio de los últimos toques
+  let taps = [];
+  panel.querySelector('.mettap').addEventListener('click', () => {
+    const now = performance.now();
+    taps = taps.filter(t => now - t < 3000);
+    taps.push(now);
+    if (taps.length >= 2) {
+      const iv = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+      met.bpm = Math.max(30, Math.min(200, Math.round(60000 / iv)));
+      metSave(); metUI();
+    }
+  });
   metUI();
 }
 
@@ -609,11 +795,12 @@ function renderSongs() {
       if (!seq.length) return;
       const beats = metBeats();
       const evs = [];
+      let bar = 0;
       seq.forEach(name => {
         const c = CHORDS[name] || CHORDS[baseChordName(name)];
         if (!c) return;
-        const midis = chordMidis(c.frets);
-        for (let b = 0; b < beats; b++) evs.push(b === 0 ? { midis, vel: 0.95 } : { midis: midis.slice(-3), vel: 0.4 });
+        barPattern('pulse', chordMidis(c.frets), beats, bar * beats).forEach(ev => evs.push(ev));
+        bar++;
       });
       playEvents(evs, met.bpm, beats, e.target);
     });
@@ -672,8 +859,21 @@ function buildRefView() {
       <p class="legend">Elige una nota y mira todas sus posiciones hasta el traste 12. Toca el diapasón para oírla.</p>
       <div class="notebtns" id="notebtns"></div>
       <div class="fbwrap" id="notefb"></div>
+    </div>
+    <div class="refblock">
+      <h3>Respaldo de tu progreso</h3>
+      <p class="legend">Días completados, notas, canciones y ajustes. Exporta el archivo y guárdalo
+      (o envíatelo); impórtalo en otro dispositivo para seguir donde ibas.</p>
+      <div class="bakrow">
+        <button id="bakexp">⬆️ Exportar respaldo</button>
+        <button id="bakimp" class="ghost">⬇️ Importar respaldo</button>
+        <input id="bakfile" type="file" accept="application/json,.json" hidden>
+      </div>
     </div>`;
   document.querySelector('main').append(view);
+  view.querySelector('#bakexp').addEventListener('click', exportProgress);
+  view.querySelector('#bakimp').addEventListener('click', () => view.querySelector('#bakfile').click());
+  view.querySelector('#bakfile').addEventListener('change', e => importProgress(e.target));
 
   const grid = view.querySelector('#chgrid');
   const names = Object.keys(CHORDS).sort();
@@ -685,6 +885,7 @@ function buildRefView() {
     div.innerHTML = src;
     grid.append(div);
   });
+  decorateChords(grid);
   view.querySelector('#chsearch').addEventListener('input', e => {
     let q = e.target.value.trim().toLowerCase();
     const lat = Object.keys(LAT2ANG).sort((a, b) => b.length - a.length).find(l => q.startsWith(l));
@@ -770,6 +971,7 @@ function startSession(dayIdx) {
       <div class="sesstitle"><b></b><small>${esc(eyebrow ? eyebrow.textContent : '')}</small></div>
       <div class="sesstime">--:--</div>
     </header>
+    <div class="sessdots">${session.exs.map(() => '<i></i>').join('')}</div>
     <div class="sesscontent"></div>
     <div class="sessbanner"><span>⏰ ¡Tiempo!</span>
       <button class="bnrepeat">🔁 Repetir</button><button class="bnnext">Siguiente →</button></div>
@@ -870,6 +1072,8 @@ function showSessionEx(i) {
   content.append(ex);
   content.scrollTop = 0;
   session.el.querySelector('.sesstitle b').textContent = `Ejercicio ${session.idx + 1} de ${session.exs.length}`;
+  session.el.querySelectorAll('.sessdots i').forEach((d, k) =>
+    d.className = k < session.idx ? 'past' : k === session.idx ? 'cur' : '');
   session.el.querySelector('.sessprev').disabled = session.idx === 0;
   session.el.querySelector('.sessnext').textContent = session.idx === session.exs.length - 1 ? '✓' : '→';
   session.total = exMinutes(ex);
@@ -885,15 +1089,17 @@ function showSessionEnd() {
   const content = session.el.querySelector('.sesscontent');
   content.innerHTML = `<div class="sessdone"><div style="font-size:52px">🎸</div>
     <h2>Sesión terminada</h2><p>Completaste los ${session.exs.length} ejercicios de hoy.</p>
+    <textarea class="sessnotes" placeholder="📝 Notas del día: qué costó, qué salió bien…"></textarea>
     <button class="sessfinish">✓ Marcar día completado</button></div>`;
+  const ta = content.querySelector('.sessnotes');
+  ta.value = getNotes()[session.dayIdx + 1] || '';
+  ta.addEventListener('input', () => saveNote(session.dayIdx + 1, ta.value));
   session.el.querySelector('.sesstitle b').textContent = 'Fin de la sesión';
+  session.el.querySelectorAll('.sessdots i').forEach(d => { d.className = 'past'; });
   session.total = null;
   updateTimerUI();
   content.querySelector('.sessfinish').addEventListener('click', () => {
-    const done = doneSet();
-    done.add(session.dayIdx + 1);
-    store('gc:done', [...done]);
-    renderDoneButtons();
+    markDayDone(session.dayIdx + 1, true);
     closeSession();
     if (session.dayIdx < DAYS.length - 1) gotoDay(session.dayIdx + 1);
   });
@@ -920,6 +1126,306 @@ function injectSessionButtons() {
     b.addEventListener('click', () => startSession(i));
     head.append(b);
   });
+}
+
+/* ===================== calendario de progreso ===================== */
+function openProgress() {
+  if (document.querySelector('.progmodal')) return;
+  const done = doneSet();
+  const cur = currentDayIndex();
+  const ov = document.createElement('div');
+  ov.className = 'progmodal';
+  let cells = '';
+  for (let n = 1; n <= DAYS.length; n++) {
+    const cls = (done.has(n) ? 'done' : '') + (n === cur + 1 ? ' cur' : '');
+    cells += `<i class="${cls.trim()}" data-n="${n}" title="Día ${n}"></i>`;
+  }
+  ov.innerHTML = `<div class="progcard">
+    <button class="progclose" aria-label="Cerrar">✕</button>
+    <h3>Tu progreso</h3>
+    <div class="progstats">
+      <div><b>${done.size}</b><span>de ${DAYS.length} días</span></div>
+      <div><b>${Math.round(done.size / DAYS.length * 100)}%</b><span>del curso</span></div>
+      <div><b>🔥 ${streakDays()}</b><span>racha (días)</span></div>
+    </div>
+    <div class="proggrid">${cells}</div>
+    <p class="legend">Verde = completado · anillo = día actual. Toca un día para ir a él.</p>
+  </div>`;
+  document.body.append(ov);
+  ov.addEventListener('click', e => {
+    if (e.target === ov || e.target.closest('.progclose')) { ov.remove(); return; }
+    const cell = e.target.closest('.proggrid i');
+    if (cell) { ov.remove(); setView('curso'); gotoDay(+cell.dataset.n - 1); }
+  });
+}
+
+/* ===================== afinador (micrófono, estilo GuitarTuna) ===================== */
+const TUNER_STRINGS = [
+  { n: '6ª', note: 'Mi · E2', f: 82.41, midi: 40 },
+  { n: '5ª', note: 'La · A2', f: 110.00, midi: 45 },
+  { n: '4ª', note: 'Re · D3', f: 146.83, midi: 50 },
+  { n: '3ª', note: 'Sol · G3', f: 196.00, midi: 55 },
+  { n: '2ª', note: 'Si · B3', f: 246.94, midi: 59 },
+  { n: '1ª', note: 'Mi · E4', f: 329.63, midi: 64 }
+];
+const tuner = { on: false, stream: null, an: null, raf: null, buf: null, lock: -1, okSince: 0, dinged: false };
+
+// autocorrelación (ACF2+) sobre la señal en el tiempo
+function detectPitch(buf, sr) {
+  let rms = 0;
+  for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / buf.length);
+  if (rms < 0.008) return -1; // silencio
+  let a = 0, b = buf.length - 1;
+  const th = 0.2;
+  for (let i = 0; i < buf.length / 2; i++) if (Math.abs(buf[i]) < th) { a = i; break; }
+  for (let i = 1; i < buf.length / 2; i++) if (Math.abs(buf[buf.length - i]) < th) { b = buf.length - i; break; }
+  const sig = buf.slice(a, b);
+  const N = sig.length;
+  if (N < 256) return -1;
+  const c = new Float32Array(N);
+  for (let lag = 0; lag < N; lag++) {
+    let s = 0;
+    for (let i = 0; i < N - lag; i++) s += sig[i] * sig[i + lag];
+    c[lag] = s;
+  }
+  let d = 0;
+  while (d < N - 1 && c[d] > c[d + 1]) d++;
+  let maxv = -1, maxp = -1;
+  for (let i = d; i < N; i++) if (c[i] > maxv) { maxv = c[i]; maxp = i; }
+  if (maxp <= 0) return -1;
+  let T = maxp;
+  const x1 = c[T - 1], x2 = c[T], x3 = c[T + 1] || 0;
+  const A = (x1 + x3 - 2 * x2) / 2, B = (x3 - x1) / 2;
+  if (A) T = T - B / (2 * A);
+  const f = sr / T;
+  return (f > 60 && f < 500) ? f : -1;
+}
+async function tunerStart() {
+  if (tuner.on) return true;
+  const view = document.getElementById('view-tuner');
+  try {
+    tuner.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (e) {
+    view.querySelector('.tunerr').textContent =
+      'Sin acceso al micrófono. Autorízalo en Ajustes → Safari → Micrófono (y usa HTTPS). ' +
+      'Mientras tanto puedes afinar de oído con los botones de cada cuerda.';
+    return false;
+  }
+  audio();
+  const src = ctx.createMediaStreamSource(tuner.stream);
+  tuner.an = ctx.createAnalyser();
+  tuner.an.fftSize = 4096;
+  src.connect(tuner.an);
+  tuner.buf = new Float32Array(tuner.an.fftSize);
+  tuner.on = true;
+  view.querySelector('.tunerr').textContent = '';
+  tunerLoop();
+  return true;
+}
+function tunerStop() {
+  tuner.on = false;
+  if (tuner.raf) cancelAnimationFrame(tuner.raf);
+  if (tuner.stream) { tuner.stream.getTracks().forEach(t => t.stop()); tuner.stream = null; }
+  tuner.an = null;
+}
+function tunerLoop() {
+  if (!tuner.on) return;
+  tuner.raf = requestAnimationFrame(tunerLoop);
+  if (tuner.an.getFloatTimeDomainData) tuner.an.getFloatTimeDomainData(tuner.buf);
+  else {
+    const b = new Uint8Array(tuner.an.fftSize);
+    tuner.an.getByteTimeDomainData(b);
+    for (let i = 0; i < b.length; i++) tuner.buf[i] = (b[i] - 128) / 128;
+  }
+  const f = detectPitch(tuner.buf, ctx.sampleRate);
+  renderTuner(f);
+}
+function renderTuner(f) {
+  const view = document.getElementById('view-tuner');
+  const needle = view.querySelector('.needle');
+  const noteEl = view.querySelector('.tunnote');
+  const centsEl = view.querySelector('.tuncents');
+  const gauge = view.querySelector('.tungauge');
+  if (f < 0) {
+    noteEl.textContent = '—';
+    centsEl.textContent = 'toca una cuerda';
+    needle.style.transform = 'rotate(0deg)';
+    gauge.classList.remove('intune');
+    tuner.okSince = 0; tuner.dinged = false;
+    return;
+  }
+  let si = tuner.lock;
+  if (si < 0) { // AUTO: cuerda más cercana
+    let bd = 1e9;
+    TUNER_STRINGS.forEach((s, i) => {
+      const d = Math.abs(Math.log2(f / s.f));
+      if (d < bd) { bd = d; si = i; }
+    });
+  }
+  const target = TUNER_STRINGS[si];
+  const cents = Math.round(1200 * Math.log2(f / target.f));
+  const cl = Math.max(-50, Math.min(50, cents));
+  needle.style.transform = `rotate(${cl * 0.9}deg)`; // ±50 cents → ±45°
+  noteEl.textContent = target.n + ' ' + target.note.split(' · ')[0];
+  centsEl.textContent = (cents > 0 ? '+' : '') + cents + ' cents' + (Math.abs(cents) <= 5 ? ' ✓' : cents < 0 ? ' · sube' : ' · baja');
+  const ok = Math.abs(cents) <= 5;
+  gauge.classList.toggle('intune', ok);
+  view.querySelectorAll('.tunstr button').forEach((b, i) =>
+    b.classList.toggle('near', i === si));
+  if (ok) {
+    if (!tuner.okSince) tuner.okSince = performance.now();
+    if (!tuner.dinged && performance.now() - tuner.okSince > 600) {
+      tuner.dinged = true;
+      pluck(target.midi + 24, 0, 0.5);
+    }
+  } else { tuner.okSince = 0; tuner.dinged = false; }
+}
+function buildTunerView() {
+  const view = document.createElement('section');
+  view.id = 'view-tuner';
+  view.className = 'view';
+  view.innerHTML = `<div class="eyebrow">Afinador</div><h2>Afinación estándar</h2>
+    <p class="legend">Toca una cuerda al aire y ajusta la clavija hasta que la aguja quede verde
+    al centro. AUTO detecta la cuerda sola; o fija una con su botón (también la hace sonar de referencia).</p>
+    <div class="tungauge">
+      <div class="tunscale"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="needle"></div>
+      <div class="tunnote">—</div>
+      <div class="tuncents">activa el micrófono</div>
+    </div>
+    <p style="text-align:center"><button class="tunon">🎙 Activar micrófono</button></p>
+    <div class="tunerr"></div>
+    <div class="tunstr">
+      <button data-i="-1" class="auto active">AUTO</button>
+      ${TUNER_STRINGS.map((s, i) => `<button data-i="${i}">${s.n}<small>${s.note}</small></button>`).join('')}
+    </div>`;
+  document.querySelector('main').append(view);
+  view.querySelector('.tunon').addEventListener('click', async e => {
+    if (tuner.on) { tunerStop(); e.target.textContent = '🎙 Activar micrófono'; return; }
+    if (await tunerStart()) e.target.textContent = '■ Detener micrófono';
+  });
+  view.querySelectorAll('.tunstr button').forEach(b => {
+    b.addEventListener('click', () => {
+      const i = +b.dataset.i;
+      tuner.lock = i;
+      view.querySelectorAll('.tunstr button').forEach(x => x.classList.toggle('active', x === b));
+      if (i >= 0) pluck(TUNER_STRINGS[i].midi, 0, 0.9);
+    });
+  });
+}
+
+/* ===================== respaldo de progreso ===================== */
+function exportProgress() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('gc:')) data[k] = localStorage.getItem(k);
+  }
+  const json = JSON.stringify({ app: 'curso-guitarra', fecha: isoToday(), datos: data }, null, 1);
+  const file = new File([json], `progreso-guitarra-${isoToday()}.json`, { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: 'Progreso curso de guitarra' }).catch(() => {});
+  } else {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+}
+function importProgress(fileInput) {
+  const f = fileInput.files && fileInput.files[0];
+  if (!f) return;
+  f.text().then(txt => {
+    const j = JSON.parse(txt);
+    if (!j || j.app !== 'curso-guitarra' || !j.datos) throw new Error('formato');
+    Object.keys(j.datos).forEach(k => { if (k.startsWith('gc:')) localStorage.setItem(k, j.datos[k]); });
+    location.reload();
+  }).catch(() => alert('Ese archivo no es un respaldo válido de esta app.'));
+}
+
+/* ===================== inicio ("Hoy") ===================== */
+function nextDayIdx() {
+  const done = doneSet();
+  for (let i = 0; i < DAYS.length; i++) if (!done.has(i + 1)) return i;
+  return DAYS.length - 1;
+}
+function dayTitle(d) {
+  const h = d.querySelector('h2');
+  return h ? h.textContent.trim() : '';
+}
+function dayMeta(d) {
+  const e = d.querySelector('.eyebrow');
+  return e ? e.textContent.trim() : '';
+}
+function buildHomeView() {
+  const view = document.createElement('section');
+  view.id = 'view-hoy';
+  view.className = 'view';
+  document.querySelector('main').append(view);
+  renderHome();
+}
+function renderHome() {
+  const view = document.getElementById('view-hoy');
+  if (!view) return;
+  const done = doneSet();
+  const idx = nextDayIdx();
+  const d = DAYS[idx];
+  const pct = done.size / DAYS.length;
+  const R = 34, CIRC = 2 * Math.PI * R;
+  view.innerHTML = `
+    <div class="homehead">
+      <div class="homering">
+        <svg viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="${R}" class="ringbg"/>
+          <circle cx="40" cy="40" r="${R}" class="ringfg" stroke-dasharray="${CIRC}"
+            stroke-dashoffset="${CIRC * (1 - pct)}" transform="rotate(-90 40 40)"/>
+        </svg>
+        <div class="ringtxt"><b>${done.size}</b><span>/${DAYS.length}</span></div>
+      </div>
+      <div class="homestats">
+        <h2>Tu curso</h2>
+        <div class="homestreak">🔥 Racha: <b>${streakDays()}</b> ${streakDays() === 1 ? 'día' : 'días'}</div>
+        <div class="homepct">${Math.round(pct * 100)}% del curso completado</div>
+      </div>
+    </div>
+    <div class="todaycard">
+      <div class="eyebrow">${esc(dayMeta(d) || 'Sesión de hoy')}</div>
+      <h3>${esc(dayTitle(d) || 'Día ' + (idx + 1))}</h3>
+      <button class="homego">▶ Empezar la sesión de hoy</button>
+      <button class="homeread ghost">Leer el día completo</button>
+    </div>
+    <div class="homerow">
+      <button class="homecal">📊 Progreso</button>
+      <button class="homefb">✉️ Enviar notas y feedback</button>
+    </div>
+    <p class="legend homefoot">El feedback se envía por correo a Andrés para mejorar la app en futuras versiones.</p>`;
+  view.querySelector('.homego').addEventListener('click', () => {
+    setView('curso'); gotoDay(idx); startSession(idx);
+  });
+  view.querySelector('.homeread').addEventListener('click', () => { setView('curso'); gotoDay(idx); });
+  view.querySelector('.homecal').addEventListener('click', openProgress);
+  view.querySelector('.homefb').addEventListener('click', sendFeedbackMail);
+}
+
+/* ===================== feedback por correo ===================== */
+function sendFeedbackMail() {
+  const done = doneSet(), notes = getNotes();
+  let body = `Progreso: ${done.size}/${DAYS.length} días · racha ${streakDays()} días\n\n`;
+  const keys = Object.keys(notes).map(Number).sort((a, b) => a - b);
+  if (keys.length) {
+    body += 'Mis notas por día:\n';
+    keys.forEach(k => { body += `— Día ${k}: ${notes[k]}\n`; });
+    body += '\n';
+  }
+  body += 'Feedback / mejoras que quiero para la app:\n· \n';
+  if (body.length > 1700) body = body.slice(0, 1700) + '\n…(notas recortadas; exporta el respaldo para el detalle completo)';
+  location.href = 'mailto:andres@nikolaventures.com?subject=' +
+    encodeURIComponent('Curso guitarra · notas y feedback') +
+    '&body=' + encodeURIComponent(body);
 }
 
 /* ===================== init ===================== */
@@ -967,12 +1473,24 @@ function init() {
   observeDays();
   buildSongsView();
   buildRefView();
+  buildTunerView();
+  buildHomeView();
   wireChordTaps();
-  setView('curso');
+  // botón de progreso junto al selector de día
+  const ctr = document.querySelector('.controls');
+  if (ctr) {
+    const b = document.createElement('button');
+    b.className = 'progbtn';
+    b.textContent = '📊';
+    b.setAttribute('aria-label', 'Progreso');
+    b.addEventListener('click', openProgress);
+    ctr.append(b);
+  }
   const saved = load('gc:day', null);
   if (!/day-\d+/.test(location.hash) && saved != null && saved !== currentDayIndex()) gotoDay(saved);
   const cur = currentDayIndex();
   if (cur >= 0) buildDemos(DAYS[cur]);
+  setView(/day-\d+/.test(location.hash) ? 'curso' : 'hoy');
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
 else init();

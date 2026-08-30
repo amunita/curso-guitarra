@@ -55,6 +55,24 @@ def main():
         h.update(p.read_bytes())
     version = h.hexdigest()[:10]
 
+    # Adiciones de contenido aprobadas por Andrés (VB 2026-08-30):
+    # A3 — afinación antes de cada sesión; A4 — metrónomo integrado vs Moises.
+    html = html.replace(
+        "<h3>Cómo usar los BPM</h3>",
+        "<h3>Antes de empezar: afina</h3><p>Afina la guitarra antes de cada sesión "
+        "(pestaña <b>Afinador</b> de esta app): practicar con la guitarra desafinada "
+        "entrena mal el oído y hace sonar sucio lo que está bien tocado.</p>"
+        "<h3>Cómo usar los BPM</h3>",
+        1,
+    )
+    html = html.replace(
+        "velocidad sin control no cuenta como progreso.</p>",
+        "velocidad sin control no cuenta como progreso. Donde el curso dice "
+        "«Moises a X BPM» puedes usar igual el metrónomo integrado de esta app "
+        "(botón ♩): mismo clic, mismo conteo.</p>",
+        1,
+    )
+
     html = html.replace("</title>", "</title>\n" + HEAD_INJECT.format(v=version), 1)
     html = html.replace("</body>", BODY_INJECT.format(v=version) + "</body>", 1)
     (DOCS / "index.html").write_text(html, encoding="utf-8")
