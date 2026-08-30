@@ -3,8 +3,8 @@
 /* App-shell: el body ocupa exactamente la pantalla y el scroll vive DENTRO de <main>.
    Así la tabbar queda en el flujo normal, anclada abajo, sin depender de position:fixed
    (que en PWAs standalone de iOS se desplaza cuando la vista es corta). */
-html{height:100%;height:100dvh;overscroll-behavior:none}
-body{height:100%;height:100dvh;margin:0;overflow:hidden;position:relative;
+html{height:100%;height:var(--appH,100dvh);overscroll-behavior:none;background:var(--paper)}
+body{height:100%;height:var(--appH,100dvh);margin:0;overflow:hidden;position:relative;
   display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent}
 main{flex:1 1 0;min-height:0;width:100%;margin:0 auto;overflow-y:auto;
   -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;

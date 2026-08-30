@@ -1516,7 +1516,25 @@ function wireChordTaps() {
     setTimeout(() => tok.classList.remove('playing'), 350);
   });
 }
+/* iOS standalone a veces reporta un viewport (100dvh / innerHeight) más corto que la
+   pantalla real, y el shell quedaba flotando sobre el bottom. Medimos la altura útil:
+   si la dimensión de pantalla es apenas mayor que innerHeight (sin teclado abierto),
+   esa es la buena. Se fija como --appH y se recalcula en cada resize/rotación. */
+function shellFit() {
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  let h = window.innerHeight;
+  if (standalone) {
+    for (const c of [screen.height, screen.width]) {
+      if (c > h && c - h < 160) { h = c; break; }
+    }
+  }
+  document.documentElement.style.setProperty('--appH', h + 'px');
+}
 function init() {
+  shellFit();
+  addEventListener('resize', shellFit);
+  addEventListener('orientationchange', () => setTimeout(shellFit, 250));
+  if (window.visualViewport) visualViewport.addEventListener('resize', shellFit);
   DAYS = [...document.querySelectorAll('.day')];
   buildChordDict();
   injectTabbar();
