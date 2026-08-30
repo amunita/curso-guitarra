@@ -73,7 +73,9 @@ def main():
         1,
     )
 
-    html = html.replace("</title>", "</title>\n" + HEAD_INJECT.format(v=version), 1)
+    # el CSS de la app va al FINAL del <head>, después del <style> del curso,
+    # para que sus reglas (safe areas, paddings) ganen en la cascada
+    html = html.replace("</head>", HEAD_INJECT.format(v=version) + "</head>", 1)
     html = html.replace("</body>", BODY_INJECT.format(v=version) + "</body>", 1)
     (DOCS / "index.html").write_text(html, encoding="utf-8")
 

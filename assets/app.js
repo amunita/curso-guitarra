@@ -258,7 +258,7 @@ function metUI() {
   const fab = document.querySelector('.metfab');
   const btn = document.querySelector('.metstart');
   if (fab) fab.classList.toggle('on', met.on);
-  if (btn) { btn.classList.toggle('on', met.on); btn.textContent = met.on ? '■ Detener' : '▶ Iniciar'; }
+  if (btn) { btn.classList.toggle('on', met.on); btn.textContent = met.on ? '■' : '▶'; }
   const dots = document.querySelector('.metbeat');
   if (dots) {
     const n = metBeats();
@@ -690,7 +690,7 @@ function injectMetronome() {
     <div class="metrow"><span class="bpmval">${met.bpm}</span><span style="color:var(--muted);font-size:13px">BPM</span>
       <select id="metsig">${Object.keys(SIGS).map(s => `<option${s === met.sig ? ' selected' : ''}>${s}</option>`).join('')}</select>
     </div>
-    <div class="metrow"><button class="metstart">▶ Iniciar</button><button class="mettap">TAP</button></div>
+    <div class="metrow"><button class="metstart" aria-label="Iniciar/detener">▶</button><button class="mettap">TAP</button></div>
     <div class="metbeat"></div>`;
   document.body.append(fab, panel);
   fab.addEventListener('click', () => panel.classList.toggle('open'));

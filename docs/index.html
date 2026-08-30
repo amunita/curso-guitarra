@@ -1,15 +1,5 @@
 <!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Curso de guitarra · 6 meses</title>
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#17212b">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Guitarra">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=a28c9dde2b">
-<style>
+<title>Curso de guitarra · 6 meses</title><style>
 :root{--ink:#17212b;--green:#2f5d50;--paper:#f4f6f5;--line:#d8dfdc;--soft:#edf3f0;--muted:#68737a}*{box-sizing:border-box}
 body{margin:0;background:var(--paper);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#28323b;line-height:1.5}main{max-width:980px;margin:auto;padding:16px 14px 70px}
 .hero{background:var(--ink);color:white;border-radius:20px;padding:25px}.hero h1{margin:0;font-size:34px}.hero p{color:#dce3e7}.goal{background:#ffffff12;padding:13px;border-radius:12px}
@@ -21,7 +11,16 @@ select,button{border:1px solid var(--line);border-radius:9px;padding:9px;backgro
 details{border:1px solid var(--line);border-radius:9px;overflow:hidden}summary{padding:10px 12px;cursor:pointer;font-weight:750;color:var(--green)}.detail{padding:0 14px 13px}li{margin:8px 0}.watch,.pass{padding:9px 10px;border-radius:8px;margin-top:8px}.watch{background:#f5f7f6}.pass{background:var(--soft);color:#274d43}
 .chords{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,145px));gap:8px;margin:10px 0}.chord{border:1px solid var(--line);border-radius:9px;padding:6px;text-align:center}svg{width:100%}.string{stroke:#596269;stroke-width:1}.fret{stroke:#aab1b5;stroke-width:1}.nut{stroke-width:4}.dot{fill:var(--green)}.open{fill:none;stroke:var(--green);stroke-width:2}.barre{stroke:var(--green);stroke-width:9;stroke-linecap:round}.mark{font-size:17px;font-weight:700}.tiny{font-size:10px;fill:#68737a}.legend{font-size:12px;color:var(--muted)}
 .sources{font-size:14px}@media(max-width:650px){.grid{grid-template-columns:1fr}.hero h1{font-size:28px}}
-</style></head><body><main>
+</style><link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#17212b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Guitarra">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css?v=a4651855c5">
+</head><body><main>
 <section class=hero><h1>Curso de guitarra · 6 meses</h1><p>182 sesiones · 7 días por semana · 30 minutos diarios</p>
 <div class=goal><b>Meta:</b> poder abordar una canción de acompañamiento nueva: encontrar pulso/compás, entender acordes y forma, elegir un patrón simple, automatizarlo, ubicar entradas vocales e integrar la voz sin que la guitarra siga cada palabra.</div></section>
 <section class=intro><h2>Metodología</h2><p>Los 30 minutos son para aprender habilidades transferibles. Si después tocas canciones, excelente: eso queda como práctica musical adicional.</p><div class=grid><div class=method><b>Automatización antes de complejidad</b><p>Si la guitarra todavía exige atención consciente, la voz la derriba. Por eso siempre se simplifica primero el acompañamiento.</p></div><div class=method><b>Separar → integrar</b><p>Cada habilidad nueva de voz y guitarra se aprende por separado y luego se combina en fragmentos cortos.</p></div><div class=method><b>Rejilla rítmica</b><p>Números y subdivisiones ubican cambios y entradas vocales; con práctica esa cuenta se internaliza.</p></div><div class=method><b>Intercalado</b><p>Cada sesión mezcla técnica, ritmo, teoría, voz e integración, en vez de 30 minutos de una sola tarea.</p></div><div class=method><b>Recuperación activa</b><p>Los días 7 prueban lo aprendido sin calentamiento excesivo: recordar y reconstruir importa.</p></div><div class=method><b>Transferencia</b><p>Los mismos principios cambian de tonalidad, compás y progresión para evitar dependencia de una sola canción.</p></div><div class=method><b>Recuperar errores</b><p>Desde mitad del curso se practica seguir tocando después de un fallo; acompañar exige continuidad.</p></div><div class=method><b>Séptimo día sostenible</b><p>Sigue siendo práctica, pero con menos repetición física y más prueba, oído e integración.</p></div></div>
@@ -3133,6 +3132,6 @@ const D=[...document.querySelectorAll('.day')],ds=document.getElementById('day')
 function show(i){cur=Math.max(0,Math.min(181,i));D.forEach((x,k)=>x.classList.toggle('active',k===cur));ds.value=cur+1;ws.value=D[cur].dataset.week;bar.style.width=((cur+1)/182*100)+'%';document.getElementById('prev').disabled=cur===0;document.getElementById('next').disabled=cur===181;}
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);ds.onchange=()=>show(+ds.value-1);ws.onchange=()=>{let w=+ws.value;show(D.findIndex(x=>+x.dataset.week===w));};
 let m=location.hash.match(/day-(\d+)/);show(m?+m[1]-1:0);
-</script><script defer src="app.js?v=a28c9dde2b"></script>
+</script><script defer src="app.js?v=a4651855c5"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js'))}</script>
 </body></html>
