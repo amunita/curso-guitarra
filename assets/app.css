@@ -170,7 +170,7 @@ body.insession{overflow:hidden}
 .sessprev,.sessnext{width:58px;background:white;color:var(--ink)}
 .sessprev:disabled{opacity:.35}
 .sesstimerbtn{flex:1}
-.sessmet{width:58px;background:white;color:var(--ink);font-size:20px}
+.sessmet,.sessfoot .sessrec{width:58px;background:white;color:var(--ink);font-size:20px}
 .sessmet.on{background:var(--green);color:white;border-color:var(--green);animation:metpulse 1s infinite}
 .sessbanner{display:none;align-items:center;gap:9px;padding:11px 14px;background:var(--green);color:white;font-weight:800}
 .sessbanner button{background:#ffffff;color:var(--green);border:none;border-radius:9px;padding:10px 13px;font-weight:800}
@@ -269,6 +269,84 @@ body.insession{overflow:hidden}
 .homerow{display:flex;gap:8px;margin-top:14px}
 .homerow button{flex:1;padding:12px;border-radius:12px;background:white;color:var(--ink);border:1px solid var(--line);font-weight:700}
 .homefoot{margin-top:8px}
+
+.homeh{margin:18px 0 0;color:var(--ink);font-size:16px}
+
+/* ---- repaso espaciado ---- */
+.revcard{margin-top:14px;border:1px solid #e5dcc3;border-radius:14px;padding:13px 15px;background:#fdfaf1}
+.revcard h3{margin:4px 0 10px;color:var(--ink);font-size:16px}
+.revbtns{display:flex;gap:8px}
+.revgo{flex:1;padding:11px;border-radius:11px;background:var(--ink);color:white;border:1px solid var(--ink);font-weight:700}
+.revskip{padding:11px 14px;border-radius:11px;background:white;color:var(--muted);border:1px solid var(--line)}
+
+/* ---- flechas de rasgueo ---- */
+.strumrow{display:flex;gap:10px;margin:8px 0 2px;padding:7px 10px;background:var(--soft);border-radius:9px;width:max-content;max-width:100%;overflow-x:auto}
+.strumrow span{display:flex;flex-direction:column;align-items:center;min-width:20px;color:var(--muted)}
+.strumrow span i{font-style:normal;font-size:19px;font-weight:800;line-height:1.1}
+.strumrow span.d i{color:var(--ink)}
+.strumrow span.u i{color:#7a8894}
+.strumrow span small{font-size:10px}
+.strumrow span.hit i{color:var(--green);transform:scale(1.25)}
+.strumrow span i{transition:transform .12s,color .12s}
+
+/* ---- metrónomo progresivo ---- */
+.metprog{margin-top:9px;font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.metprog label{font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px}
+.metprog input[type=number]{width:46px;padding:3px 4px;border:1px solid var(--line);border-radius:6px;text-align:center;font-size:13px}
+
+/* ---- grabaciones ---- */
+.sessfoot .sessrec.rec{background:#c0392b;border-color:#c0392b;color:white;animation:metpulse 1s infinite}
+.recs h4{margin:14px 0 6px;color:var(--ink)}
+.recrow{display:flex;align-items:center;gap:8px;margin:6px 0}
+.recrow span{font-size:12px;color:var(--muted);flex:none;width:96px}
+.recrow audio{flex:1;height:36px;min-width:0}
+.recrow .danger{flex:none;background:white;color:#a13d3d;border:1px solid #e2c7c7;border-radius:8px;padding:6px 9px}
+
+/* ---- modales de herramientas ---- */
+.toolmodal{position:absolute;inset:0;z-index:70;background:#17212b99;display:grid;place-items:center;padding:16px}
+.toolcard{position:relative;background:white;border-radius:16px;padding:18px;max-width:430px;width:100%;max-height:88%;overflow-y:auto}
+.toolcard h3{margin:0 0 8px;color:var(--ink)}
+.toolclose{position:absolute;top:10px;right:10px;background:none;border:none;font-size:18px;color:var(--muted)}
+
+/* cambios de acordes */
+.chgsel{display:flex;align-items:center;gap:8px;margin:10px 0}
+.chgsel select{flex:1;padding:9px;border:1px solid var(--line);border-radius:9px;font-size:16px}
+.chgsel .chgo{padding:9px 13px;border-radius:9px;background:var(--green);color:white;border:1px solid var(--green);font-weight:800}
+.chgtime{text-align:center;font-size:44px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.chgbig{display:block;width:100%;padding:26px;margin:10px 0;border-radius:16px;background:var(--green);color:white;border:none;font-size:34px;font-weight:800}
+.chgbig small{display:block;font-size:14px;font-weight:600;opacity:.85}
+.chgcount{text-align:center;color:var(--muted);font-weight:700}
+.chgres{margin-top:10px;padding:11px;background:var(--soft);border-radius:10px;color:var(--ink)}
+.chgbests{margin-top:12px;color:var(--muted);font-size:13px}
+.chgbests table{margin-top:6px;border-collapse:collapse}
+.chgbests td{padding:2px 14px 2px 0;color:var(--ink)}
+
+/* oído */
+.earscore{color:var(--muted);font-size:14px;margin:6px 0}
+.earscore b{color:var(--ink)}
+.earplay{padding:10px 16px;border-radius:10px;background:var(--ink);color:white;border:1px solid var(--ink);font-weight:700}
+.earopts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.earopts button{padding:15px;border-radius:11px;border:1px solid var(--line);background:white;color:var(--ink);font-size:17px;font-weight:800}
+.earopts button.good{background:#e8f4ee;border-color:var(--green);color:var(--green)}
+.earopts button.bad{background:#faecec;border-color:#c98d8d;color:#a13d3d}
+.earmsg{margin-top:9px;min-height:20px;color:var(--ink);font-weight:600}
+
+/* verificador de acordes */
+.beta{font-size:11px;font-weight:700;color:white;background:var(--ink);border-radius:6px;padding:2px 6px;vertical-align:2px}
+.ccrow{display:flex;gap:8px;margin:8px 0}
+.ccrow select{flex:1;padding:9px;border:1px solid var(--line);border-radius:9px;font-size:16px}
+.ccrow button{padding:9px 13px;border-radius:9px;background:var(--green);color:white;border:1px solid var(--green);font-weight:700}
+.ccout{min-height:22px;color:var(--ink)}
+.ccnote{display:inline-block;padding:4px 10px;border-radius:8px;font-weight:800;margin:2px 3px 2px 0}
+.ccnote.ok{background:#e8f4ee;color:var(--green)}
+.ccnote.no{background:#faecec;color:#a13d3d}
+.ccverdict{margin-top:7px;font-size:14px}
+
+/* calificación al cierre de sesión */
+.sessrate{display:flex;align-items:center;gap:7px;justify-content:center;flex-wrap:wrap;margin:10px 0 2px}
+.sessrate span{color:var(--muted);font-size:14px;width:100%;text-align:center}
+.sessrate button{padding:10px 13px;border-radius:11px;border:1px solid var(--line);background:white;color:var(--ink);font-weight:700}
+.sessrate button.sel{background:var(--green);border-color:var(--green);color:white}
 
 @media(max-width:650px){
   .dayhead{flex-wrap:wrap}

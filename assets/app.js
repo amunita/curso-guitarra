@@ -222,15 +222,18 @@ function decorateChords(root) {
 
 /* ===================== metrónomo (estilo Moises) ===================== */
 const SIGS = { '2/4': 2, '3/4': 3, '4/4': 4, '5/4': 5, '6/8': 6, '12/8': 12 };
-const met = Object.assign({ bpm: 60, sig: '4/4', on: false, next: 0, count: 0, timer: null }, load('gc:met', {}));
+const met = Object.assign({ bpm: 60, sig: '4/4', on: false, next: 0, count: 0, timer: null,
+  prog: { on: false, to: 80, step: 5, bars: 8 } }, load('gc:met', {}));
 met.on = false;
+if (!met.prog) met.prog = { on: false, to: 80, step: 5, bars: 8 };
 function metBeats() { return SIGS[met.sig] || 4; }
-function metSave() { store('gc:met', { bpm: met.bpm, sig: met.sig }); }
+function metSave() { store('gc:met', { bpm: met.bpm, sig: met.sig, prog: met.prog }); }
 function metStart() {
   audio();
   if (met.on) return;
   met.on = true;
   met.count = 0;
+  met.lastBump = 0;
   met.next = ctx.currentTime + 0.1;
   met.timer = setInterval(metTick, 25);
   metUI();
@@ -242,7 +245,17 @@ function metStop() {
 }
 function metTick() {
   while (met.next < ctx.currentTime + 0.12) {
-    const beat = met.count % metBeats();
+    const beats = metBeats();
+    const beat = met.count % beats;
+    // modo progresivo: cada N compases sube el BPM hasta el objetivo
+    if (met.prog.on && beat === 0 && met.count > 0) {
+      const bar = met.count / beats;
+      if (bar % met.prog.bars === 0 && met.lastBump !== bar && met.bpm < met.prog.to) {
+        met.lastBump = bar;
+        met.bpm = Math.min(met.prog.to, met.bpm + met.prog.step);
+        metSave(); metUI();
+      }
+    }
     click(met.next, beat === 0);
     flashBeat(beat, (met.next - ctx.currentTime) * 1000);
     met.count++;
@@ -324,8 +337,13 @@ function playEvents(events, bpm, sigBeats, btn, onBeatFlash) {
 /* Patrones de rasgueo/arpegio por compás. D = abajo (grave→agudo), U = arriba (agudo→grave). */
 function barPattern(kind, midis, beats, at0) {
   const top = n => midis.slice(-n);
-  const D = (at, vel, n) => ({ at: at0 + at, midis: n ? top(n) : midis, vel });
-  const U = (at, vel) => ({ at: at0 + at, midis: top(4).slice().reverse(), vel, strumMs: 28 });
+  const D = (at, vel, n) => ({ at: at0 + at, midis: n ? top(n) : midis, vel, dir: 'd' });
+  const U = (at, vel) => ({ at: at0 + at, midis: top(4).slice().reverse(), vel, strumMs: 28, dir: 'u' });
+  const evs = barPatternEvents(kind, midis, beats, at0, D, U, top);
+  evs.forEach((e, i) => { e.pi = i; if (!e.dir) e.dir = 'a'; });
+  return evs;
+}
+function barPatternEvents(kind, midis, beats, at0, D, U, top) {
   switch (kind) {
     case 'du': {
       const ev = [];
@@ -519,6 +537,19 @@ function buildDemoPanel(ex, spec) {
   bpmBox.querySelector('.bup').addEventListener('click', () => { spec.bpm = Math.min(200, spec.bpm + 5); bpmVal.textContent = spec.bpm; });
   row.append(play, stop, bpmBox, label);
   panel.append(row);
+  // flechas del patrón de rasgueo: ↓ abajo, ↑ arriba, ● nota suelta; se iluminan al sonar
+  let arrows = null;
+  if (spec.type === 'prog') {
+    const beats = SIGS[spec.sig] || 4;
+    const patEvs = barPattern(spec.pattern || 'pulse', chordMidis(CHORDS[spec.chords[0]].frets), beats, 0);
+    const srow = document.createElement('div');
+    srow.className = 'strumrow';
+    srow.innerHTML = patEvs.map(e =>
+      `<span class="${e.dir}"><i>${e.dir === 'd' ? '↓' : e.dir === 'u' ? '↑' : '●'}</i><small>${
+        Number.isInteger(e.at) ? e.at + 1 : '·'}</small></span>`).join('');
+    panel.append(srow);
+    arrows = [...srow.children];
+  }
   let fb = null;
   if (spec.type === 'seq') {
     const wrap = document.createElement('div');
@@ -535,6 +566,11 @@ function buildDemoPanel(ex, spec) {
     const { events, beats } = specEvents(spec);
     playEvents(events, spec.bpm || met.bpm, beats, play, (ev) => {
       if (fb && ev.fb) fb.__flash(ev.fb.s, ev.fb.f);
+      if (arrows && ev.pi != null && arrows[ev.pi]) {
+        arrows.forEach(a => a.classList.remove('hit'));
+        arrows[ev.pi].classList.add('hit');
+        setTimeout(() => arrows[ev.pi] && arrows[ev.pi].classList.remove('hit'), 260);
+      }
     });
   });
   stop.addEventListener('click', stopPlayback);
@@ -568,16 +604,17 @@ function saveNote(dayNum, text) {
   }, 400);
 }
 function injectDayNotes(day) {
-  if (day.querySelector('.daynotes')) return;
+  if (day.querySelector('.daynotes')) { renderRecs(day); return; }
   const n = DAYS.indexOf(day) + 1;
   if (!n) return;
   const wrap = document.createElement('div');
   wrap.className = 'daynotes';
-  wrap.innerHTML = '<h4>📝 Mis notas del día</h4><textarea placeholder="Qué costó, qué salió bien, dudas para después…"></textarea>';
+  wrap.innerHTML = '<h4>📝 Mis notas del día</h4><textarea placeholder="Qué costó, qué salió bien, dudas para después…"></textarea><div class="recs"></div>';
   const ta = wrap.querySelector('textarea');
   ta.value = getNotes()[n] || '';
   ta.addEventListener('input', () => saveNote(n, ta.value));
   day.append(wrap);
+  renderRecs(day);
 }
 
 /* ===================== curso: estado y navegación ===================== */
@@ -718,6 +755,12 @@ function injectMetronome() {
       <select id="metsig">${Object.keys(SIGS).map(s => `<option${s === met.sig ? ' selected' : ''}>${s}</option>`).join('')}</select>
     </div>
     <div class="metrow"><button class="metstart" aria-label="Iniciar/detener">▶</button><button class="mettap">TAP</button></div>
+    <div class="metprog">
+      <label><input type="checkbox" id="mpon"${met.prog.on ? ' checked' : ''}> Progresivo</label>
+      <span>hasta <input id="mpto" type="number" min="30" max="200" value="${met.prog.to}"> ·
+      +<input id="mpstep" type="number" min="1" max="20" value="${met.prog.step}"> cada
+      <input id="mpbars" type="number" min="1" max="32" value="${met.prog.bars}"> comp.</span>
+    </div>
     <div class="metbeat"></div>`;
   document.body.append(fab, panel);
   fab.addEventListener('click', () => panel.classList.toggle('open'));
@@ -726,6 +769,14 @@ function injectMetronome() {
   panel.querySelector('#bpmup').addEventListener('click', () => { met.bpm = Math.min(200, met.bpm + 5); metSave(); metUI(); });
   panel.querySelector('#metsig').addEventListener('change', e => { met.sig = e.target.value; metSave(); metUI(); });
   panel.querySelector('.metstart').addEventListener('click', () => { met.on ? metStop() : metStart(); });
+  panel.querySelector('#mpon').addEventListener('change', e => { met.prog.on = e.target.checked; met.lastBump = 0; metSave(); });
+  [['#mpto', 'to', 30, 200], ['#mpstep', 'step', 1, 20], ['#mpbars', 'bars', 1, 32]].forEach(([id, k, lo, hi]) => {
+    panel.querySelector(id).addEventListener('change', e => {
+      met.prog[k] = Math.max(lo, Math.min(hi, +e.target.value || lo));
+      e.target.value = met.prog[k];
+      metSave();
+    });
+  });
   // tap tempo: promedio de los últimos toques
   let taps = [];
   panel.querySelector('.mettap').addEventListener('click', () => {
@@ -895,6 +946,14 @@ function buildRefView() {
       <div class="refchords" id="chgrid"></div>
     </div>
     <div class="refblock">
+      <h3>¿Te sale el acorde? <small class="beta">beta</small></h3>
+      <p class="legend">Elige un acorde, toca «Probar» y rasguéalo una vez, fuerte y cerca del teléfono.
+      La app escucha ~3 segundos y te dice si sonaron todas sus notas (una nota ausente suele ser
+      una cuerda muteada por un dedo mal apoyado).</p>
+      <div class="ccrow"><select id="ccsel"></select><button id="ccgo">🎙 Probar</button></div>
+      <div class="ccout"></div>
+    </div>
+    <div class="refblock">
       <h3>¿Dónde está cada nota?</h3>
       <p class="legend">Elige una nota y mira todas sus posiciones hasta el traste 12. Toca el diapasón para oírla.</p>
       <div class="notebtns" id="notebtns"></div>
@@ -902,8 +961,9 @@ function buildRefView() {
     </div>
     <div class="refblock">
       <h3>Respaldo de tu progreso</h3>
-      <p class="legend">Días completados, notas, canciones y ajustes. Exporta el archivo y guárdalo
-      (o envíatelo); impórtalo en otro dispositivo para seguir donde ibas.</p>
+      <p class="legend">Días completados, notas, canciones, récords y ajustes. Exporta el archivo y
+      guárdalo (o envíatelo); impórtalo en otro dispositivo para seguir donde ibas.
+      Las grabaciones de audio no viajan en el respaldo (viven solo en este dispositivo).</p>
       <div class="bakrow">
         <button id="bakexp">${ICONS.up} Exportar respaldo</button>
         <button id="bakimp" class="ghost">${ICONS.down} Importar respaldo</button>
@@ -911,6 +971,13 @@ function buildRefView() {
       </div>
     </div>`;
   document.querySelector('main').append(view);
+  const ccsel = view.querySelector('#ccsel');
+  ccsel.innerHTML = Object.keys(CHORDS).sort().map(n => `<option>${n}</option>`).join('');
+  const ccgo = view.querySelector('#ccgo');
+  ccgo.addEventListener('click', () => {
+    ccgo.disabled = true;
+    chordCheck(ccsel.value, view.querySelector('.ccout')).finally(() => { ccgo.disabled = false; });
+  });
   view.querySelector('#bakexp').addEventListener('click', exportProgress);
   view.querySelector('#bakimp').addEventListener('click', () => view.querySelector('#bakfile').click());
   view.querySelector('#bakfile').addEventListener('change', e => importProgress(e.target));
@@ -1024,6 +1091,7 @@ function startSession(dayIdx) {
       <button class="sessprev" aria-label="Anterior">←</button>
       <button class="sesstimerbtn">▶ Empezar</button>
       <button class="sessmet" aria-label="Metrónomo">${ICONS.metronome}</button>
+      <button class="sessrec" aria-label="Grabarme">${ICONS.mic}</button>
       <button class="sessnext" aria-label="Siguiente">→</button>
     </footer>`;
   document.body.append(ov);
@@ -1043,6 +1111,7 @@ function startSession(dayIdx) {
     met.on ? metStop() : metStart();
     sessionMetUI();
   });
+  ov.querySelector('.sessrec').addEventListener('click', e => recToggle(e.target.closest('.sessrec')));
   ov.querySelector('.sbdn').addEventListener('click', () => { met.bpm = Math.max(30, met.bpm - 5); metSave(); metUI(); sessionMetUI(); });
   ov.querySelector('.sbup').addEventListener('click', () => { met.bpm = Math.min(200, met.bpm + 5); metSave(); metUI(); sessionMetUI(); });
   sessionMetUI();
@@ -1141,8 +1210,21 @@ function showSessionEnd() {
   const content = session.el.querySelector('.sesscontent');
   content.innerHTML = `<div class="sessdone"><div style="font-size:52px">🎸</div>
     <h2>Sesión terminada</h2><p>Completaste los ${session.exs.length} ejercicios de hoy.</p>
+    <div class="sessrate"><span>¿Cómo estuvo?</span>
+      <button data-r="f">😌 Fácil</button><button data-r="n">🙂 Normal</button><button data-r="d">😅 Difícil</button></div>
+    <p class="legend">Con esto la app te propone repasos: lo difícil vuelve antes.</p>
     <textarea class="sessnotes" placeholder="📝 Notas del día: qué costó, qué salió bien…"></textarea>
     <button class="sessfinish">✓ Marcar día completado</button></div>`;
+  const n = session.dayIdx + 1;
+  const diff = load('gc:diff', {});
+  content.querySelectorAll('.sessrate button').forEach(b => {
+    b.classList.toggle('sel', diff[n] === b.dataset.r);
+    b.addEventListener('click', () => {
+      diff[n] = b.dataset.r;
+      store('gc:diff', diff);
+      content.querySelectorAll('.sessrate button').forEach(x => x.classList.toggle('sel', x === b));
+    });
+  });
   const ta = content.querySelector('.sessnotes');
   ta.value = getNotes()[session.dayIdx + 1] || '';
   ta.addEventListener('input', () => saveNote(session.dayIdx + 1, ta.value));
@@ -1161,6 +1243,7 @@ function closeSession() {
   stopTimer();
   stopPlayback();
   metStop();
+  if (rec.mr) rec.mr.stop();
   if (session.idx < session.exs.length) returnExercise();
   if (session.wakeLock) { try { session.wakeLock.release(); } catch (e) {} session.wakeLock = null; }
   session.el.remove();
@@ -1410,6 +1493,279 @@ function importProgress(fileInput) {
   }).catch(() => alert('Ese archivo no es un respaldo válido de esta app.'));
 }
 
+/* ===================== grabaciones (IndexedDB) ===================== */
+let recDB = null;
+function recdb() {
+  return new Promise((res, rej) => {
+    if (recDB) return res(recDB);
+    const q = indexedDB.open('gc-rec', 1);
+    q.onupgradeneeded = () => {
+      const st = q.result.createObjectStore('recs', { keyPath: 'id', autoIncrement: true });
+      st.createIndex('day', 'day');
+    };
+    q.onsuccess = () => { recDB = q.result; res(recDB); };
+    q.onerror = () => rej(q.error);
+  });
+}
+function recAdd(day, blob) {
+  return recdb().then(db => new Promise((res, rej) => {
+    const tx = db.transaction('recs', 'readwrite');
+    tx.objectStore('recs').add({ day, ts: Date.now(), blob });
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  }));
+}
+function recList(day) {
+  return recdb().then(db => new Promise((res, rej) => {
+    const q = db.transaction('recs').objectStore('recs').index('day').getAll(day);
+    q.onsuccess = () => res(q.result || []); q.onerror = () => rej(q.error);
+  })).catch(() => []);
+}
+function recDel(id) {
+  return recdb().then(db => new Promise(res => {
+    const tx = db.transaction('recs', 'readwrite');
+    tx.objectStore('recs').delete(id);
+    tx.oncomplete = res;
+  }));
+}
+function renderRecs(day) {
+  const box = day.querySelector('.recs');
+  if (!box) return;
+  const n = DAYS.indexOf(day) + 1;
+  recList(n).then(items => {
+    if (!items.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<h4>🎙 Mis grabaciones</h4>';
+    items.sort((a, b) => b.ts - a.ts).forEach(it => {
+      const d = new Date(it.ts);
+      const row = document.createElement('div');
+      row.className = 'recrow';
+      const lbl = document.createElement('span');
+      lbl.textContent = d.toLocaleDateString('es-CL') + ' ' +
+        d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      const au = document.createElement('audio');
+      au.controls = true; au.preload = 'none';
+      au.src = URL.createObjectURL(it.blob);
+      const del = document.createElement('button');
+      del.className = 'danger'; del.textContent = '✕';
+      del.addEventListener('click', () => {
+        if (del.dataset.arm) recDel(it.id).then(() => renderRecs(day));
+        else { del.dataset.arm = '1'; del.textContent = '¿Borrar?'; setTimeout(() => { del.dataset.arm = ''; del.textContent = '✕'; }, 2500); }
+      });
+      row.append(lbl, au, del);
+      box.append(row);
+    });
+  });
+}
+const rec = { mr: null, stream: null, timer: null };
+async function recToggle(btn) {
+  if (rec.mr) { rec.mr.stop(); return; }
+  if (!window.MediaRecorder) { alert('Este navegador no soporta grabación de audio.'); return; }
+  try {
+    rec.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) { alert('Sin acceso al micrófono: autorízalo para poder grabarte.'); return; }
+  const chunks = [];
+  rec.mr = new MediaRecorder(rec.stream);
+  rec.mr.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  rec.mr.onstop = () => {
+    clearTimeout(rec.timer);
+    const blob = new Blob(chunks, { type: rec.mr.mimeType || 'audio/mp4' });
+    rec.stream.getTracks().forEach(t => t.stop());
+    rec.mr = null; rec.stream = null;
+    btn.classList.remove('rec');
+    const day = DAYS[session.open ? session.dayIdx : currentDayIndex()];
+    const n = DAYS.indexOf(day) + 1;
+    recAdd(n, blob).then(() => { injectDayNotes(day); renderRecs(day); });
+  };
+  rec.mr.start();
+  btn.classList.add('rec');
+  rec.timer = setTimeout(() => { if (rec.mr) rec.mr.stop(); }, 90000); // tope 90 s
+}
+
+/* ===================== repaso espaciado ===================== */
+// intervalo de repaso según cómo estuvo el día: difícil 3d · normal 7d · fácil 14d
+const REVIEW_IV = { d: 3, n: 7, f: 14 };
+function reviewDue() {
+  const done = load('gc:doneDates', {});
+  const diff = load('gc:diff', {});
+  const seen = load('gc:reviews', {});
+  const today = new Date(isoToday() + 'T00:00:00');
+  let best = null;
+  Object.keys(done).forEach(n => {
+    const last = new Date((seen[n] || done[n]) + 'T00:00:00');
+    const days = Math.round((today - last) / 86400000);
+    const need = REVIEW_IV[diff[n] || 'n'];
+    if (days >= need && (!best || days - need > best.over)) best = { n: +n, over: days - need, days };
+  });
+  return best;
+}
+function markReviewed(n) {
+  const seen = load('gc:reviews', {});
+  seen[n] = isoToday();
+  store('gc:reviews', seen);
+}
+
+/* ===================== herramientas de práctica ===================== */
+function toolModal(html) {
+  const ov = document.createElement('div');
+  ov.className = 'toolmodal';
+  ov.innerHTML = `<div class="toolcard"><button class="toolclose" aria-label="Cerrar">✕</button>${html}</div>`;
+  document.body.append(ov);
+  const close = () => { ov.remove(); if (ov.__onclose) ov.__onclose(); };
+  ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('.toolclose')) close(); });
+  return ov;
+}
+// entrenador de cambios de acordes ("one-minute changes")
+function openChanges() {
+  const st = load('gc:changes', { best: {}, last: ['G', 'C'] });
+  const names = Object.keys(CHORDS).sort();
+  const opts = sel => names.map(x => `<option${x === sel ? ' selected' : ''}>${x}</option>`).join('');
+  const bestRows = Object.keys(st.best).sort()
+    .map(p => `<tr><td>${esc(p)}</td><td><b>${st.best[p]}</b></td></tr>`).join('');
+  const ov = toolModal(`
+    <h3>Cambios de acordes</h3>
+    <p class="legend">Un minuto, un par de acordes: alterna entre los dos lo más limpio que puedas
+    y toca <b>+1</b> por cada cambio logrado. La meta clásica: 30 por minuto = listo para tocar canciones.</p>
+    <div class="chgsel"><select class="cha">${opts(st.last[0])}</select> ⇄ <select class="chb">${opts(st.last[1])}</select>
+      <button class="chgo">▶ 60 s</button></div>
+    <div class="chgrun" hidden>
+      <div class="chgtime">60</div>
+      <button class="chgbig">+1<small>cambio</small></button>
+      <div class="chgcount">0 cambios</div>
+    </div>
+    <div class="chgres" hidden></div>
+    ${bestRows ? `<details class="chgbests"><summary>Mis récords</summary><table>${bestRows}</table></details>` : ''}`);
+  const $ = s => ov.querySelector(s);
+  let t = null, count = 0, remain = 60;
+  ov.__onclose = () => clearInterval(t);
+  $('.chgo').addEventListener('click', () => {
+    const pair = $('.cha').value + '→' + $('.chb').value;
+    st.last = [$('.cha').value, $('.chb').value];
+    count = 0; remain = 60;
+    $('.chgrun').hidden = false; $('.chgres').hidden = true; $('.chgo').disabled = true;
+    $('.chgtime').textContent = remain; $('.chgcount').textContent = '0 cambios';
+    audio();
+    t = setInterval(() => {
+      remain--;
+      $('.chgtime').textContent = remain;
+      if (remain <= 0) {
+        clearInterval(t); t = null;
+        $('.chgrun').hidden = true; $('.chgo').disabled = false;
+        const prev = st.best[pair] || 0;
+        if (count > prev) st.best[pair] = count;
+        store('gc:changes', st);
+        chime();
+        $('.chgres').hidden = false;
+        $('.chgres').innerHTML = `<b>${count} cambios</b> en 60 s (${esc(pair)})` +
+          (count > prev ? ' · 🎉 ¡récord nuevo!' : prev ? ` · tu récord: ${prev}` : '') +
+          (count >= 30 ? '<br>✅ ¡30+! Este par ya está listo para canciones.' : '');
+      }
+    }, 1000);
+  });
+  $('.chgbig').addEventListener('click', () => {
+    if (t == null) return;
+    count++;
+    $('.chgcount').textContent = count + (count === 1 ? ' cambio' : ' cambios');
+  });
+}
+// entrenamiento de oído: ¿qué acorde suena?
+function openEar() {
+  const st = load('gc:ear', { streak: 0, best: 0 });
+  st.streak = 0;
+  const ov = toolModal(`
+    <h3>Entrena el oído</h3>
+    <p class="legend">Suena un acorde del curso: adivina cuál es. Puedes repetirlo las veces que quieras.</p>
+    <div class="earscore">Racha: <b class="earstreak">0</b> · Mejor: <b class="earbest">${st.best}</b></div>
+    <p><button class="earplay">🔊 Repetir</button></p>
+    <div class="earopts"></div>
+    <div class="earmsg"></div>`);
+  const $ = s => ov.querySelector(s);
+  const names = Object.keys(CHORDS).sort();
+  let answer = null, locked = false;
+  function playAnswer() { if (answer) { stopPlayback(); strumChord(answer, ctx ? ctx.currentTime + 0.05 : 0, 0.9); } }
+  function next() {
+    locked = false;
+    $('.earmsg').textContent = '';
+    answer = names[Math.floor(Math.random() * names.length)];
+    const pool = names.filter(x => x !== answer);
+    const opts = [answer];
+    while (opts.length < Math.min(4, names.length)) {
+      const c = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+      opts.push(c);
+    }
+    opts.sort(() => Math.random() - 0.5);
+    const box = $('.earopts');
+    box.innerHTML = '';
+    opts.forEach(name => {
+      const b = document.createElement('button');
+      b.textContent = name;
+      b.addEventListener('click', () => {
+        if (locked) return;
+        locked = true;
+        const good = name === answer;
+        b.classList.add(good ? 'good' : 'bad');
+        if (!good) [...box.children].find(x => x.textContent === answer).classList.add('good');
+        st.streak = good ? st.streak + 1 : 0;
+        if (st.streak > st.best) st.best = st.streak;
+        store('gc:ear', { best: st.best });
+        $('.earstreak').textContent = st.streak;
+        $('.earbest').textContent = st.best;
+        $('.earmsg').textContent = good ? '✅ ¡Ese era!' : `Era ${answer}. Escúchalos de nuevo y sigue.`;
+        setTimeout(() => { next(); playAnswer(); }, good ? 900 : 1800);
+      });
+      box.append(b);
+    });
+    playAnswer();
+  }
+  $('.earplay').addEventListener('click', playAnswer);
+  audio();
+  next();
+}
+// verificador de acordes con micrófono (beta): ¿están sonando las notas del acorde?
+async function chordCheck(name, out) {
+  const c = CHORDS[name];
+  if (!c) return;
+  out.textContent = 'Pidiendo micrófono…';
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (e) { out.textContent = 'Sin acceso al micrófono.'; return; }
+  audio();
+  const src = ctx.createMediaStreamSource(stream);
+  const an = ctx.createAnalyser();
+  an.fftSize = 8192;
+  an.smoothingTimeConstant = 0.5;
+  src.connect(an);
+  const bins = new Float32Array(an.frequencyBinCount);
+  const chroma = new Float32Array(12);
+  out.innerHTML = '🎙 <b>Toca el acorde ahora</b> (rasguea una vez, fuerte)…';
+  const t0 = performance.now();
+  await new Promise(res => {
+    (function loop() {
+      an.getFloatFrequencyData(bins);
+      const hz = ctx.sampleRate / an.fftSize;
+      for (let i = Math.ceil(70 / hz); i < Math.min(bins.length, 1100 / hz); i++) {
+        const f = i * hz;
+        const mag = Math.pow(10, bins[i] / 20);
+        const pc = ((Math.round(12 * Math.log2(f / 440)) + 69) % 12 + 12) % 12;
+        if (mag > chroma[pc]) chroma[pc] = mag;
+      }
+      if (performance.now() - t0 < 2600) requestAnimationFrame(loop); else res();
+    })();
+  });
+  stream.getTracks().forEach(t => t.stop());
+  const want = [...new Set(chordMidis(c.frets).map(m => m % 12))];
+  const max = Math.max.apply(null, [...chroma]);
+  if (max < 1e-6) { out.textContent = 'No escuché nada: acércate al micrófono y rasguea fuerte.'; return; }
+  const res = want.map(pc => ({ pc, ok: chroma[pc] >= max * 0.18 }));
+  const okAll = res.every(r => r.ok);
+  out.innerHTML = res.map(r =>
+    `<span class="ccnote ${r.ok ? 'ok' : 'no'}">${PC_LAT[r.pc]} ${r.ok ? '✓' : '✗'}</span>`).join(' ') +
+    `<div class="ccverdict">${okAll ? '✅ ¡Suena completo!' :
+      '⚠️ Falta que suene ' + res.filter(r => !r.ok).map(r => PC_LAT[r.pc]).join(' y ') +
+      ': revisa que esas cuerdas no estén muteadas.'}</div>`;
+}
+
 /* ===================== inicio ("Hoy") ===================== */
 function nextDayIdx() {
   const done = doneSet();
@@ -1461,6 +1817,22 @@ function renderHome() {
       <button class="homego">▶ Empezar la sesión de hoy</button>
       <button class="homeread ghost">Leer el día completo</button>
     </div>
+    ${(() => {
+      const r = reviewDue();
+      if (!r) return '';
+      const rd = DAYS[r.n - 1];
+      return `<div class="revcard">
+        <div class="eyebrow">🔁 Repaso sugerido · hace ${r.days} días</div>
+        <h3>Día ${r.n}: ${esc(dayTitle(rd))}</h3>
+        <div class="revbtns"><button class="revgo" data-n="${r.n}">Repasar 5–10 min</button>
+        <button class="revskip ghost" data-n="${r.n}">Hoy no</button></div>
+      </div>`;
+    })()}
+    <h3 class="homeh">Práctica libre</h3>
+    <div class="homerow">
+      <button class="homechg">⇄ Cambios de acordes</button>
+      <button class="homeear">👂 Entrena el oído</button>
+    </div>
     <div class="homerow">
       <button class="homecal">${ICONS.chart} Progreso</button>
       <button class="homefb">${ICONS.mail} Feedback</button>
@@ -1472,6 +1844,16 @@ function renderHome() {
   view.querySelector('.homeread').addEventListener('click', () => { setView('curso'); gotoDay(idx); });
   view.querySelector('.homecal').addEventListener('click', openProgress);
   view.querySelector('.homefb').addEventListener('click', sendFeedbackMail);
+  view.querySelector('.homechg').addEventListener('click', openChanges);
+  view.querySelector('.homeear').addEventListener('click', openEar);
+  const rg = view.querySelector('.revgo');
+  if (rg) rg.addEventListener('click', () => {
+    const n = +rg.dataset.n;
+    markReviewed(n);
+    setView('curso'); gotoDay(n - 1);
+  });
+  const rs = view.querySelector('.revskip');
+  if (rs) rs.addEventListener('click', () => { markReviewed(+rs.dataset.n); renderHome(); });
 }
 
 /* ===================== feedback por correo ===================== */
