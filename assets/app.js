@@ -43,7 +43,7 @@ function midiFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 /* Muestras de guitarra nylon real (VSCO2 Community Edition, dominio público):
    una nota grabada cada ~2 semitonos; las intermedias se afinan con playbackRate.
    Si aún no cargaron (o falló la red y no hay cache), pluck() cae al Karplus-Strong. */
-const SAMPLE_MIDI = { E2: 40, Fs2: 42, Gs2: 44, B2: 47, Cs3: 49, E3: 52, Fs3: 54, A3: 57, B3: 59, Cs4: 61, E4: 64, Fs4: 66, Gs4: 68, B4: 71, Cs5: 73, E5: 76, Fs5: 78, Gs5: 80, As5: 82 };
+const SAMPLE_MIDI = { E2: 40, Fs2: 42, Gs2: 44, A2: 45, B2: 47, Cs3: 49, D3: 50, E3: 52, Fs3: 54, G3: 55, A3: 57, B3: 59, Cs4: 61, Ds4: 63, E4: 64, Fs4: 66, Gs4: 68, A4: 69, B4: 71, Cs5: 73, D5: 74, E5: 76, Fs5: 78, G5: 79, Gs5: 80, A5: 81, As5: 82 };
 const sampleRaw = {};  // midi → ArrayBuffer a la espera de un AudioContext
 const sampleBuf = {};  // midi → AudioBuffer decodificado
 function fetchSamples() {
@@ -66,7 +66,9 @@ function nearestSample(midi) {
     const d = Math.abs(+k - midi);
     if (d < bd) { bd = d; best = +k; }
   }
-  return bd <= 4 ? best : null; // no estirar una muestra más de 4 semitonos
+  // con el set completo el estiramiento normal es ≤1 semitono; el margen de 6
+  // cubre las notas del "ding" del afinador y el aviso de sesión (hasta MIDI 88)
+  return bd <= 6 ? best : null;
 }
 fetchSamples();
 window.__gcaudio = () => ({ pendientes: Object.keys(sampleRaw).length, decodificadas: Object.keys(sampleBuf).length, ctx: !!ctx });
