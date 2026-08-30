@@ -1,6 +1,8 @@
 /* Runtime de la webapp — se suma al design system del curso (paleta --ink/--green/--paper). */
 
-body{padding-bottom:calc(64px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+html{height:100%;overscroll-behavior-y:none}
+body{min-height:100%;box-sizing:border-box;overscroll-behavior-y:none;
+  padding-bottom:calc(64px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
 /* respeta la barra de estado (notch/Dynamic Island) y no duplica espacio bajo la tabbar */
 main{padding-top:max(16px,calc(env(safe-area-inset-top) + 8px));padding-bottom:14px}
 /* fondo tras la barra de estado en modo standalone, para que el contenido no se lea "a través" */
@@ -11,6 +13,8 @@ body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;justify-content:space-around;
   background:#ffffffee;backdrop-filter:blur(10px);border-top:1px solid var(--line);
   padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+/* si iOS desplaza la barra por scroll residual, que no se vea el fondo gris debajo */
+.tabbar::after{content:"";position:absolute;top:100%;left:0;right:0;height:45vh;background:#ffffff}
 .tabbar button{flex:1;max-width:170px;background:none;border:none;color:var(--muted);font-weight:700;
   font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;border-radius:10px}
 .tabbar button .ico{font-size:20px;line-height:1}

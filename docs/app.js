@@ -656,7 +656,10 @@ function setView(v) {
   document.body.dataset.view = v;
   if (v === 'hoy') renderHome();
   document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  // doble reset: iOS standalone deja un scroll residual al achicarse el documento
+  // y dibuja los elementos fixed desplazados hasta el próximo toque
   window.scrollTo(0, 0);
+  requestAnimationFrame(() => window.scrollTo(0, 0));
 }
 function injectTabbar() {
   const bar = document.createElement('nav');
