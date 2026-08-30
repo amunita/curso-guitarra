@@ -126,7 +126,11 @@ details[open] summary::after{transform:rotate(180deg)}
 .songactions .danger{background:white;color:#a13d3d;border-color:#e2c7c7}
 .songedit{width:100%;min-height:170px;font-family:ui-monospace,Menlo,monospace;font-size:13px;border:1px solid var(--line);
   border-radius:9px;padding:9px;margin-top:8px;box-sizing:border-box}
-.songhint{font-size:13px;color:var(--muted);background:var(--soft);border-radius:9px;padding:9px 11px}
+.songhint{font-size:13px;color:var(--muted);background:var(--soft);border-radius:9px;padding:9px 13px}
+.songhint p{margin:2px 0 6px}
+.songhint ul{margin:0;padding-left:18px}
+.songhint li{margin:4px 0}
+.songhint code{background:white;border:1px solid #e2e7e4;border-radius:4px;padding:0 4px}
 
 /* ---- referencia ---- */
 .refsearch{width:100%;box-sizing:border-box;padding:11px;border:1px solid var(--line);border-radius:10px;
@@ -154,6 +158,12 @@ body.insession{overflow:hidden}
 .sesstime.running{color:#8fd4bf}
 .sesscontent{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 10px}
 .sesscontent .exercise{border-top:none;padding-top:2px}
+.sessbpm{display:none;align-items:center;justify-content:center;gap:12px;padding:7px 14px;
+  background:var(--soft);border-top:1px solid #e2e7e4}
+.session.meton .sessbpm{display:flex}
+.sessbpm button{width:56px;height:38px;border-radius:10px;border:1px solid #d5dcd7;background:white;
+  font-size:16px;font-weight:800;color:var(--ink)}
+.sessbpm .sbval{min-width:86px;text-align:center;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
 .sessfoot{display:flex;gap:9px;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
   background:#ffffffee;border-top:1px solid var(--line)}
 .sessfoot button{border-radius:11px;height:50px;font-size:16px}

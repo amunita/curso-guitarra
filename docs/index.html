@@ -19,7 +19,7 @@ details{border:1px solid var(--line);border-radius:9px;overflow:hidden}summary{p
 <meta name="apple-mobile-web-app-title" content="Guitarra">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=0c5ac38fbe">
+<link rel="stylesheet" href="app.css?v=bb21e47892">
 </head><body><main>
 <section class=hero><h1>Curso de guitarra · 6 meses</h1><p>182 sesiones · 7 días por semana · 30 minutos diarios</p>
 <div class=goal><b>Meta:</b> poder abordar una canción de acompañamiento nueva: encontrar pulso/compás, entender acordes y forma, elegir un patrón simple, automatizarlo, ubicar entradas vocales e integrar la voz sin que la guitarra siga cada palabra.</div></section>
@@ -3132,6 +3132,6 @@ const D=[...document.querySelectorAll('.day')],ds=document.getElementById('day')
 function show(i){cur=Math.max(0,Math.min(181,i));D.forEach((x,k)=>x.classList.toggle('active',k===cur));ds.value=cur+1;ws.value=D[cur].dataset.week;bar.style.width=((cur+1)/182*100)+'%';document.getElementById('prev').disabled=cur===0;document.getElementById('next').disabled=cur===181;}
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);ds.onchange=()=>show(+ds.value-1);ws.onchange=()=>{let w=+ws.value;show(D.findIndex(x=>+x.dataset.week===w));};
 let m=location.hash.match(/day-(\d+)/);show(m?+m[1]-1:0);
-</script><script defer src="app.js?v=0c5ac38fbe"></script>
+</script><script defer src="app.js?v=bb21e47892"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js'))}</script>
 </body></html>

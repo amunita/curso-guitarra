@@ -269,6 +269,7 @@ function metUI() {
   }
   const v = document.querySelector('.bpmval');
   if (v) v.textContent = met.bpm;
+  if (session.el) sessionMetUI();
   const r = document.querySelector('#metslider');
   if (r && +r.value !== met.bpm) r.value = met.bpm;
   const s = document.querySelector('#metsig');
@@ -280,10 +281,12 @@ let playSession = 0;
 function stopPlayback() {
   playSession++;
   stopAllSound();
-  document.querySelectorAll('.play.playing').forEach(b => { b.classList.remove('playing'); b.textContent = '▶'; });
+  document.querySelectorAll('.play.playing').forEach(b => { b.classList.remove('playing'); b.textContent = b.dataset.lbl || '▶'; });
 }
 // events: [{at, midis:[..], vel, strumMs, fb}] — `at` en pulsos (puede ser fraccionario)
 function playEvents(events, bpm, sigBeats, btn, onBeatFlash) {
+  // el mismo botón alterna: tocando → detener
+  if (btn && btn.classList.contains('playing')) { stopPlayback(); return; }
   audio();
   stopPlayback();
   if (!events.length) return;
@@ -311,10 +314,10 @@ function playEvents(events, bpm, sigBeats, btn, onBeatFlash) {
     if (onBeatFlash) setTimeout(() => { if (id === playSession) onBeatFlash(ev); }, (when - ctx.currentTime) * 1000);
   });
   const end = t + (lastAt + 1) * spb + 0.4;
-  if (btn) { btn.classList.add('playing'); btn.textContent = '…'; }
+  if (btn) { if (!btn.dataset.lbl) btn.dataset.lbl = btn.textContent; btn.classList.add('playing'); btn.textContent = '■ Detener'; }
   setTimeout(() => {
     if (id !== playSession) return;
-    if (btn) { btn.classList.remove('playing'); btn.textContent = '▶'; }
+    if (btn) { btn.classList.remove('playing'); btn.textContent = btn.dataset.lbl || '▶'; }
     if (wasRunning) metStart();
   }, (end - ctx.currentTime) * 1000);
 }
@@ -800,9 +803,22 @@ function renderSongs() {
   const view = document.getElementById('view-songs');
   const songs = getSongs();
   view.innerHTML = `<div class="eyebrow">Canciones</div><h2>Letras y acordes</h2>
-    <div class="songhint">Los acordes van en su propia línea, sobre la letra. Toca un acorde para oírlo,
-    o ▶ para oír la progresión completa. El curso no incluye letras: pega tu propia hoja obtenida
-    legalmente con «Editar».</div>
+    <div class="songhint">
+      <p><b>Cómo funciona esta vista</b></p>
+      <ul>
+        <li>Cada hoja muestra los <b>acordes en su propia línea</b>, encima de la sílaba de la letra
+        donde cambian — el formato clásico de los cancioneros.</li>
+        <li><b>Toca cualquier acorde</b> de la hoja (G, Em, C…) para oír cómo suena.</li>
+        <li><b>«▶ Progresión»</b> toca todos los acordes de la canción seguidos, un compás cada uno,
+        al tempo que tenga el metrónomo. Mientras suena, el mismo botón pasa a <b>«■ Detener»</b>:
+        tócalo para parar.</li>
+        <li><b>«Editar»</b> abre la hoja como texto: la primera línea es el título, la segunda una
+        descripción, luego una línea con <code>---</code>, y debajo la hoja (línea de acordes arriba,
+        línea de letra abajo, alternadas). <b>«Guardar»</b> aplica los cambios.</li>
+        <li>El curso no incluye las letras por derechos de autor: pega tú la letra desde una hoja
+        obtenida legalmente y escribe los acordes en la línea de arriba.</li>
+      </ul>
+    </div>
     <p><button id="songnew">+ Nueva canción</button></p>`;
   songs.forEach((song, idx) => {
     const card = document.createElement('div');
@@ -999,6 +1015,11 @@ function startSession(dayIdx) {
     <div class="sesscontent"></div>
     <div class="sessbanner"><span>⏰ ¡Tiempo!</span>
       <button class="bnrepeat">🔁 Repetir</button><button class="bnnext">Siguiente →</button></div>
+    <div class="sessbpm">
+      <button class="sbdn" aria-label="Bajar tempo">−5</button>
+      <span class="sbval"></span>
+      <button class="sbup" aria-label="Subir tempo">+5</button>
+    </div>
     <footer class="sessfoot">
       <button class="sessprev" aria-label="Anterior">←</button>
       <button class="sesstimerbtn">▶ Empezar</button>
@@ -1022,12 +1043,19 @@ function startSession(dayIdx) {
     met.on ? metStop() : metStart();
     sessionMetUI();
   });
+  ov.querySelector('.sbdn').addEventListener('click', () => { met.bpm = Math.max(30, met.bpm - 5); metSave(); metUI(); sessionMetUI(); });
+  ov.querySelector('.sbup').addEventListener('click', () => { met.bpm = Math.min(200, met.bpm + 5); metSave(); metUI(); sessionMetUI(); });
+  sessionMetUI();
   sessionWakeLock();
   showSessionEx(0);
 }
 function sessionMetUI() {
-  const b = session.el && session.el.querySelector('.sessmet');
+  if (!session.el) return;
+  const b = session.el.querySelector('.sessmet');
   if (b) b.classList.toggle('on', met.on);
+  session.el.classList.toggle('meton', met.on);
+  const v = session.el.querySelector('.sbval');
+  if (v) v.textContent = met.bpm + ' BPM';
 }
 function returnExercise() {
   if (session.ph && session.ph.parentNode && session.exs[session.idx]) {
