@@ -646,6 +646,27 @@ function observeDays() {
   DAYS.forEach(d => obs.observe(d, { attributes: true, attributeFilter: ['class'] }));
 }
 
+/* ===================== íconos (SVG de trazo, monocromos) ===================== */
+const ICONS = (() => {
+  const wrap = inner =>
+    `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ` +
+    `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  return {
+    home: wrap('<path d="M3 10.2 12 3l9 7.2"/><path d="M5 8.8V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.8"/><path d="M9.5 21v-6h5v6"/>'),
+    book: wrap('<path d="M12 6.5A4.5 4.5 0 0 0 7.5 2H2v16h6a4 4 0 0 1 4 4"/><path d="M12 6.5A4.5 4.5 0 0 1 16.5 2H22v16h-6a4 4 0 0 0-4 4"/><path d="M12 6.5V22"/>'),
+    music: wrap('<circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M9 18V5.5L21 3v13"/>'),
+    gauge: wrap('<path d="M3.4 19a10 10 0 1 1 17.2 0"/><path d="m12 14 3.6-3.6"/><circle cx="12" cy="14" r="1" fill="currentColor"/>'),
+    chords: wrap('<path d="M7 3v18M12 3v18M17 3v18"/><path d="M4 8h16M4 15h16"/><circle cx="12" cy="11.5" r="2.1" fill="currentColor" stroke="none"/>'),
+    metronome: wrap('<path d="M9.2 3h5.6L19 21H5z"/><path d="M5.9 16.5h12.2"/><path d="m12 16.5 5-9.5"/>'),
+    chart: wrap('<path d="M4 20h16"/><path d="M7 20v-6M12 20V6M17 20v-9"/>'),
+    mail: wrap('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/>'),
+    mic: wrap('<rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/>'),
+    up: wrap('<path d="M12 15V4"/><path d="m7 8.5 5-4.5 5 4.5"/><path d="M4 20h16"/>'),
+    down: wrap('<path d="M12 4v11"/><path d="m7 10.5 5 4.5 5-4.5"/><path d="M4 20h16"/>'),
+    stop: wrap('<rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none"/>')
+  };
+})();
+
 /* ===================== vistas / pestañas ===================== */
 function setView(v) {
   if (document.body.dataset.view === 'tuner' && v !== 'tuner') {
@@ -664,8 +685,8 @@ function setView(v) {
 function injectTabbar() {
   const bar = document.createElement('nav');
   bar.className = 'tabbar';
-  [['hoy', '🏠', 'Hoy'], ['curso', '📖', 'Curso'], ['songs', '🎵', 'Canciones'],
-   ['tuner', '🎯', 'Afinador'], ['ref', '🎸', 'Referencia']].forEach(([v, ico, lbl]) => {
+  [['hoy', ICONS.home, 'Hoy'], ['curso', ICONS.book, 'Curso'], ['songs', ICONS.music, 'Canciones'],
+   ['tuner', ICONS.gauge, 'Afinador'], ['ref', ICONS.chords, 'Referencia']].forEach(([v, ico, lbl]) => {
     const b = document.createElement('button');
     b.dataset.view = v;
     b.innerHTML = `<span class="ico">${ico}</span>${lbl}`;
@@ -679,7 +700,7 @@ function injectTabbar() {
 function injectMetronome() {
   const fab = document.createElement('button');
   fab.className = 'metfab';
-  fab.textContent = '♩';
+  fab.innerHTML = ICONS.metronome;
   fab.setAttribute('aria-label', 'Metrónomo');
   const panel = document.createElement('div');
   panel.className = 'metpanel';
@@ -868,8 +889,8 @@ function buildRefView() {
       <p class="legend">Días completados, notas, canciones y ajustes. Exporta el archivo y guárdalo
       (o envíatelo); impórtalo en otro dispositivo para seguir donde ibas.</p>
       <div class="bakrow">
-        <button id="bakexp">⬆️ Exportar respaldo</button>
-        <button id="bakimp" class="ghost">⬇️ Importar respaldo</button>
+        <button id="bakexp">${ICONS.up} Exportar respaldo</button>
+        <button id="bakimp" class="ghost">${ICONS.down} Importar respaldo</button>
         <input id="bakfile" type="file" accept="application/json,.json" hidden>
       </div>
     </div>`;
@@ -981,7 +1002,7 @@ function startSession(dayIdx) {
     <footer class="sessfoot">
       <button class="sessprev" aria-label="Anterior">←</button>
       <button class="sesstimerbtn">▶ Empezar</button>
-      <button class="sessmet" aria-label="Metrónomo">♩</button>
+      <button class="sessmet" aria-label="Metrónomo">${ICONS.metronome}</button>
       <button class="sessnext" aria-label="Siguiente">→</button>
     </footer>`;
   document.body.append(ov);
@@ -1299,7 +1320,7 @@ function buildTunerView() {
       <div class="tunnote">—</div>
       <div class="tuncents">activa el micrófono</div>
     </div>
-    <p style="text-align:center"><button class="tunon">🎙 Activar micrófono</button></p>
+    <p style="text-align:center"><button class="tunon">${ICONS.mic} Activar micrófono</button></p>
     <div class="tunerr"></div>
     <div class="tunstr">
       <button data-i="-1" class="auto active">AUTO</button>
@@ -1307,8 +1328,9 @@ function buildTunerView() {
     </div>`;
   document.querySelector('main').append(view);
   view.querySelector('.tunon').addEventListener('click', async e => {
-    if (tuner.on) { tunerStop(); e.target.textContent = '🎙 Activar micrófono'; return; }
-    if (await tunerStart()) e.target.textContent = '■ Detener micrófono';
+    const b = e.target.closest('.tunon');
+    if (tuner.on) { tunerStop(); b.innerHTML = `${ICONS.mic} Activar micrófono`; return; }
+    if (await tunerStart()) b.innerHTML = `${ICONS.stop} Detener micrófono`;
   });
   view.querySelectorAll('.tunstr button').forEach(b => {
     b.addEventListener('click', () => {
@@ -1402,8 +1424,8 @@ function renderHome() {
       <button class="homeread ghost">Leer el día completo</button>
     </div>
     <div class="homerow">
-      <button class="homecal">📊 Progreso</button>
-      <button class="homefb">✉️ Enviar notas y feedback</button>
+      <button class="homecal">${ICONS.chart} Progreso</button>
+      <button class="homefb">${ICONS.mail} Feedback</button>
     </div>
     <p class="legend homefoot">El feedback se envía por correo a Andrés para mejorar la app en futuras versiones.</p>`;
   view.querySelector('.homego').addEventListener('click', () => {
@@ -1484,7 +1506,7 @@ function init() {
   if (ctr) {
     const b = document.createElement('button');
     b.className = 'progbtn';
-    b.textContent = '📊';
+    b.innerHTML = ICONS.chart;
     b.setAttribute('aria-label', 'Progreso');
     b.addEventListener('click', openProgress);
     ctr.append(b);
