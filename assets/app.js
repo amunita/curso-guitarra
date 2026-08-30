@@ -586,6 +586,8 @@ function gotoDay(i) {
   i = Math.max(0, Math.min(DAYS.length - 1, i));
   sel.value = i + 1;
   sel.dispatchEvent(new Event('change'));
+  const m = document.querySelector('main');
+  if (m) m.scrollTop = 0;
 }
 function doneSet() { return new Set(load('gc:done', [])); }
 function isoToday() { return new Date().toISOString().slice(0, 10); }
@@ -672,15 +674,13 @@ function setView(v) {
   if (document.body.dataset.view === 'tuner' && v !== 'tuner') {
     tunerStop();
     const b = document.querySelector('#view-tuner .tunon');
-    if (b) b.textContent = '🎙 Activar micrófono';
+    if (b) b.innerHTML = `${ICONS.mic} Activar micrófono`;
   }
   document.body.dataset.view = v;
   if (v === 'hoy') renderHome();
   document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
-  // doble reset: iOS standalone deja un scroll residual al achicarse el documento
-  // y dibuja los elementos fixed desplazados hasta el próximo toque
-  window.scrollTo(0, 0);
-  requestAnimationFrame(() => window.scrollTo(0, 0));
+  const m = document.querySelector('main');
+  if (m) m.scrollTop = 0;
 }
 function injectTabbar() {
   const bar = document.createElement('nav');

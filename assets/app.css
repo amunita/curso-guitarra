@@ -1,20 +1,25 @@
 /* Runtime de la webapp — se suma al design system del curso (paleta --ink/--green/--paper). */
 
-html{height:100%;overscroll-behavior-y:none}
-body{min-height:100%;box-sizing:border-box;overscroll-behavior-y:none;
-  padding-bottom:calc(64px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
-/* respeta la barra de estado (notch/Dynamic Island) y no duplica espacio bajo la tabbar */
-main{padding-top:max(16px,calc(env(safe-area-inset-top) + 8px));padding-bottom:14px}
+/* App-shell: el body ocupa exactamente la pantalla y el scroll vive DENTRO de <main>.
+   Así la tabbar queda en el flujo normal, anclada abajo, sin depender de position:fixed
+   (que en PWAs standalone de iOS se desplaza cuando la vista es corta). */
+html{height:100%;height:100dvh;overscroll-behavior:none}
+body{height:100%;height:100dvh;margin:0;overflow:hidden;position:relative;
+  display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent}
+main{flex:1 1 0;min-height:0;width:100%;margin:0 auto;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;
+  padding-top:max(16px,calc(env(safe-area-inset-top) + 8px));padding-bottom:24px}
+/* la barra sticky de controles del curso se pega bajo la barra de estado, no detrás */
+.controls{top:env(safe-area-inset-top)}
 /* fondo tras la barra de estado en modo standalone, para que el contenido no se lea "a través" */
-body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);
+body::before{content:"";position:absolute;top:0;left:0;right:0;height:env(safe-area-inset-top);
   background:var(--paper);z-index:50;pointer-events:none}
 
 /* ---- barra de pestañas ---- */
-.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;justify-content:space-around;
+.tabbar{flex:none;z-index:40;display:flex;justify-content:space-around;
   background:#ffffffee;backdrop-filter:blur(10px);border-top:1px solid var(--line);
   padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
 /* si iOS desplaza la barra por scroll residual, que no se vea el fondo gris debajo */
-.tabbar::after{content:"";position:absolute;top:100%;left:0;right:0;height:45vh;background:#ffffff}
 .tabbar button{flex:1;max-width:170px;background:none;border:none;color:var(--muted);font-weight:700;
   font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;border-radius:10px}
 .tabbar button .ico{line-height:1}
@@ -84,11 +89,11 @@ details[open] summary::after{transform:rotate(180deg)}
 .fb .fb-notelbl{fill:white;font-size:9.5px;font-weight:700;pointer-events:none}
 
 /* ---- metrónomo ---- */
-.metfab{position:fixed;right:12px;bottom:calc(70px + env(safe-area-inset-bottom));z-index:41;width:52px;height:52px;
+.metfab{position:absolute;right:12px;bottom:calc(70px + env(safe-area-inset-bottom));z-index:41;width:52px;height:52px;
   border-radius:50%;font-size:22px;box-shadow:0 4px 14px #17212b40;border:none;display:grid;place-items:center}
 .metfab.on{background:var(--green);animation:metpulse 1s infinite}
 @keyframes metpulse{0%{box-shadow:0 0 0 0 #2f5d5066}70%{box-shadow:0 0 0 12px #2f5d5000}100%{box-shadow:0 0 0 0 #2f5d5000}}
-.metpanel{position:fixed;right:12px;bottom:calc(130px + env(safe-area-inset-bottom));z-index:42;background:white;
+.metpanel{position:absolute;right:12px;bottom:calc(130px + env(safe-area-inset-bottom));z-index:42;background:white;
   border:1px solid var(--line);border-radius:14px;padding:14px;width:240px;box-shadow:0 10px 30px #17212b33;display:none}
 .metpanel.open{display:block}
 .metpanel h4{margin:0 0 8px;color:var(--ink)}
@@ -138,7 +143,7 @@ details[open] summary::after{transform:rotate(180deg)}
   padding:8px 12px;font-weight:750;white-space:nowrap}
 body.insession .tabbar,body.insession .metfab,body.insession .metpanel{display:none!important}
 body.insession{overflow:hidden}
-.session{position:fixed;inset:0;z-index:60;background:var(--paper);display:flex;flex-direction:column}
+.session{position:absolute;inset:0;z-index:60;background:var(--paper);display:flex;flex-direction:column}
 .sesshead{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
   background:var(--ink);color:white}
 .sessclose{background:#ffffff22;color:white;border:none;width:38px;height:38px;border-radius:50%;font-size:16px}
@@ -191,7 +196,7 @@ body.insession{overflow:hidden}
 
 /* ---- calendario de progreso ---- */
 .progbtn{background:white;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
-.progmodal{position:fixed;inset:0;z-index:70;background:#17212b99;display:grid;place-items:center;padding:16px}
+.progmodal{position:absolute;inset:0;z-index:70;background:#17212b99;display:grid;place-items:center;padding:16px}
 .progcard{background:white;border-radius:18px;padding:18px;max-width:430px;width:100%;max-height:86vh;
   overflow-y:auto;position:relative;box-shadow:0 18px 50px #17212b55}
 .progcard h3{margin:0 0 10px;color:var(--ink)}
