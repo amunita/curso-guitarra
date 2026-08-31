@@ -1123,7 +1123,16 @@ function startSession(dayIdx) {
     <div class="sesscontent"></div>
     <div class="sessbanner"><span>⏰ ¡Tiempo!</span>
       <button class="bnrepeat">🔁 Repetir</button><button class="bnnext">Siguiente →</button></div>
+    <div class="miccount" hidden>
+      <button class="mcbig">0</button>
+      <div class="mcinfo">
+        <span class="mcstate">🎤 escuchando…</span>
+        <span class="mctempo"></span>
+        <small>Cuenta cada golpe que oye · si paras de tocar ~1 s, vuelve a 0 · tócalo para reiniciar</small>
+      </div>
+    </div>
     <div class="sessbpm">
+      <button class="sbmic" aria-label="Contador por micrófono">🎤</button>
       <button class="sbdn" aria-label="Bajar tempo">−5</button>
       <span class="sbval"></span>
       <button class="sbup" aria-label="Subir tempo">+5</button>
@@ -1153,6 +1162,28 @@ function startSession(dayIdx) {
     sessionMetUI();
   });
   ov.querySelector('.sessrec').addEventListener('click', e => recToggle(e.target.closest('.sessrec')));
+  const mcPanel = ov.querySelector('.miccount'), mcBig = ov.querySelector('.mcbig'),
+    mcState = ov.querySelector('.mcstate'), mcTempo = ov.querySelector('.mctempo');
+  ov.querySelector('.sbmic').addEventListener('click', async e => {
+    const b = e.target.closest('.sbmic');
+    if (mic.on) { micStop(); b.classList.remove('on'); mcPanel.hidden = true; return; }
+    const ok = await micStart();
+    if (!ok) { mcState.textContent = 'Sin acceso al micrófono'; return; }
+    b.classList.add('on'); mcPanel.hidden = false;
+    mcBig.textContent = '0'; mcTempo.textContent = '';
+    mic.onCount = n => {
+      mcBig.textContent = n;
+      mcBig.classList.remove('pop'); void mcBig.offsetWidth; mcBig.classList.add('pop');
+      mcState.textContent = '🎤 escuchando…';
+    };
+    mic.onReset = () => {
+      mcBig.textContent = '0'; mcTempo.textContent = '';
+      mcState.textContent = '↺ silencio: de nuevo desde 0';
+      mcBig.classList.add('zeroed'); setTimeout(() => mcBig.classList.remove('zeroed'), 600);
+    };
+    mic.onTempo = (v, pct) => { mcTempo.textContent = v + ' · ' + pct + '% en el clic'; };
+  });
+  mcBig.addEventListener('click', () => { mic.count = 0; mic.offsets = []; mcBig.textContent = '0'; mcTempo.textContent = ''; });
   ov.querySelector('.sbdn').addEventListener('click', () => { met.bpm = Math.max(30, met.bpm - 5); metSave(); metUI(); sessionMetUI(); });
   ov.querySelector('.sbup').addEventListener('click', () => { met.bpm = Math.min(200, met.bpm + 5); metSave(); metUI(); sessionMetUI(); });
   sessionMetUI();
@@ -1285,6 +1316,7 @@ function closeSession() {
   stopPlayback();
   metStop();
   if (rec.mr) rec.mr.stop();
+  if (mic.on) micStop();
   if (session.idx < session.exs.length) returnExercise();
   if (session.wakeLock) { try { session.wakeLock.release(); } catch (e) {} session.wakeLock = null; }
   session.el.remove();
@@ -1596,6 +1628,90 @@ function renderRecs(day) {
     });
   });
 }
+/* ============== contador por micrófono (golpes + silencio) ==============
+   Cuenta cada ataque (rasgueo/nota) que oye el micrófono. Andrés juzga la
+   calidad: si para de tocar (~1,2 s de silencio), el contador vuelve a 0.
+   Con el metrónomo andando compara cada ataque con el clic más cercano y
+   dice si va al tempo. El micrófono pasa por dos pasa-bajos a 900 Hz para
+   que el clic del metrónomo (1250/1800 Hz) no se cuente como golpe. */
+const mic = { stream: null, an: null, buf: null, raf: 0, on: false, count: 0,
+  env: 0, floor: 0.004, lastOnset: 0, lastSound: 0, offsets: [],
+  onCount: null, onReset: null, onTempo: null, silenceMs: 1200 };
+
+async function micStart() {
+  if (mic.on) return true;
+  audio();
+  try {
+    mic.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (e) { return false; }
+  const src = ctx.createMediaStreamSource(mic.stream);
+  const lp1 = ctx.createBiquadFilter(); lp1.type = 'lowpass'; lp1.frequency.value = 900;
+  const lp2 = ctx.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 900;
+  mic.an = ctx.createAnalyser();
+  mic.an.fftSize = 2048;
+  src.connect(lp1); lp1.connect(lp2); lp2.connect(mic.an);
+  mic.buf = new Float32Array(mic.an.fftSize);
+  mic.on = true; mic.count = 0; mic.env = 0; mic.floor = 0.004;
+  mic.lastOnset = 0; mic.lastSound = performance.now(); mic.offsets = [];
+  mic.silenceMs = 1200;
+  mic.raf = requestAnimationFrame(micLoop);
+  return true;
+}
+function micStop() {
+  mic.on = false;
+  cancelAnimationFrame(mic.raf);
+  if (mic.stream) { mic.stream.getTracks().forEach(t => t.stop()); mic.stream = null; }
+  mic.an = null; mic.onCount = mic.onReset = mic.onTempo = null;
+}
+function micLoop() {
+  if (!mic.on) return;
+  mic.an.getFloatTimeDomainData(mic.buf);
+  let s = 0;
+  for (let i = 0; i < mic.buf.length; i++) s += mic.buf[i] * mic.buf[i];
+  const rms = Math.sqrt(s / mic.buf.length);
+  const now = performance.now();
+  // piso de ruido adaptativo (solo sube lento, baja rápido)
+  if (rms < mic.floor) mic.floor = Math.max(0.002, mic.floor * 0.995);
+  else if (rms < mic.floor * 2.5) mic.floor = mic.floor * 1.01;
+  const soundTh = Math.max(0.008, mic.floor * 3);
+  if (rms > soundTh) mic.lastSound = now;
+  // ataque: salto claro sobre la envolvente, con antirrebote de 200 ms
+  const onsetTh = Math.max(0.02, mic.floor * 6);
+  if (rms > onsetTh && rms > mic.env * 1.9 && now - mic.lastOnset > 200) {
+    mic.lastOnset = now;
+    mic.count++;
+    if (met.on) micTempoMark();
+    if (mic.onCount) mic.onCount(mic.count);
+  }
+  mic.env = Math.max(rms, mic.env * 0.93);
+  // silencio sostenido → contador a cero (Andrés paró porque no le salió)
+  if (mic.count > 0 && now - mic.lastSound > mic.silenceMs) {
+    mic.count = 0; mic.offsets = [];
+    if (mic.onReset) mic.onReset();
+  }
+  mic.raf = requestAnimationFrame(micLoop);
+}
+function micTempoMark() {
+  const beat = 60 / met.bpm;
+  // desfase respecto del clic más cercano, en segundos (met.next = próximo clic)
+  let d = (ctx.currentTime - met.next) % beat;
+  if (d > beat / 2) d -= beat; if (d < -beat / 2) d += beat;
+  mic.offsets.push(d);
+  if (mic.offsets.length > 8) mic.offsets.shift();
+  if (!mic.onTempo || mic.offsets.length < 3) return;
+  const sorted = [...mic.offsets].sort((a, b) => a - b);
+  const med = sorted[sorted.length >> 1];
+  const hits = mic.offsets.filter(o => Math.abs(o) <= 0.09).length / mic.offsets.length;
+  let verdict;
+  if (hits >= 0.6) verdict = '🎯 al tempo';
+  else if (med < -0.07) verdict = '⏩ te adelantas';
+  else if (med > 0.07) verdict = '⏪ te atrasas';
+  else verdict = '〰 irregular';
+  mic.onTempo(verdict, Math.round(hits * 100));
+}
+
 const rec = { mr: null, stream: null, timer: null };
 async function recToggle(btn) {
   if (rec.mr) { rec.mr.stop(); return; }
@@ -1667,6 +1783,7 @@ function openChanges() {
     y toca <b>+1</b> por cada cambio logrado. La meta clásica: 30 por minuto = listo para tocar canciones.</p>
     <div class="chgsel"><select class="cha">${opts(st.last[0])}</select> ⇄ <select class="chb">${opts(st.last[1])}</select>
       <button class="chgo">▶ 60 s</button></div>
+    <label class="chgmic"><input type="checkbox" class="chmic"> 🎤 contar con el micrófono (cada rasgueo = 1 cambio)</label>
     <div class="chgrun" hidden>
       <div class="chgtime">60</div>
       <button class="chgbig">+1<small>cambio</small></button>
@@ -1676,19 +1793,28 @@ function openChanges() {
     ${bestRows ? `<details class="chgbests"><summary>Mis récords</summary><table>${bestRows}</table></details>` : ''}`);
   const $ = s => ov.querySelector(s);
   let t = null, count = 0, remain = 60;
-  ov.__onclose = () => clearInterval(t);
-  $('.chgo').addEventListener('click', () => {
+  ov.__onclose = () => { clearInterval(t); if (mic.on) micStop(); };
+  const showCount = () => { $('.chgcount').textContent = count + (count === 1 ? ' cambio' : ' cambios'); };
+  $('.chgo').addEventListener('click', async () => {
     const pair = $('.cha').value + '→' + $('.chb').value;
     st.last = [$('.cha').value, $('.chb').value];
     count = 0; remain = 60;
     $('.chgrun').hidden = false; $('.chgres').hidden = true; $('.chgo').disabled = true;
     $('.chgtime').textContent = remain; $('.chgcount').textContent = '0 cambios';
     audio();
+    if ($('.chmic').checked) {
+      const ok = await micStart();
+      if (ok) {
+        mic.silenceMs = 1e9; // acá no se reinicia por silencio: cuenta total del minuto
+        mic.onCount = () => { if (t) { count++; showCount(); } };
+      } else { $('.chmic').checked = false; }
+    }
     t = setInterval(() => {
       remain--;
       $('.chgtime').textContent = remain;
       if (remain <= 0) {
         clearInterval(t); t = null;
+        if (mic.on) micStop();
         $('.chgrun').hidden = true; $('.chgo').disabled = false;
         const prev = st.best[pair] || 0;
         if (count > prev) st.best[pair] = count;

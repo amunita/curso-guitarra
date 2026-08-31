@@ -61,8 +61,12 @@ def main():
         h.update(p.read_bytes())
     version = h.hexdigest()[:10]
 
-    # Adiciones de contenido aprobadas por Andrés (VB 2026-08-30):
-    # A3 — afinación antes de cada sesión; A4 — metrónomo integrado vs Moises.
+    # Cambios de contenido aprobados por Andrés:
+    # A3 (VB 2026-08-30) — afinación antes de cada sesión.
+    # A4 (VB 2026-08-30, reescrito 2026-08-31) — usar el metrónomo integrado.
+    # A5 (pedido 2026-08-31) — el curso decía "Moises a X BPM"; Andrés no usa
+    # Moises: se reemplaza por "Metrónomo a X BPM" (el de la app, botón ♩).
+    html = re.sub(r"Moises( a)? (\d+ BPM)", r"Metrónomo a \2", html)
     html = html.replace(
         "<h3>Cómo usar los BPM</h3>",
         "<h3>Antes de empezar: afina</h3><p>Afina la guitarra antes de cada sesión "
@@ -73,9 +77,8 @@ def main():
     )
     html = html.replace(
         "velocidad sin control no cuenta como progreso.</p>",
-        "velocidad sin control no cuenta como progreso. Donde el curso dice "
-        "«Moises a X BPM» puedes usar igual el metrónomo integrado de esta app "
-        "(botón ♩): mismo clic, mismo conteo.</p>",
+        "velocidad sin control no cuenta como progreso. El metrónomo es el "
+        "integrado de esta app (botón ♩): ponle los BPM que pida el ejercicio.</p>",
         1,
     )
 

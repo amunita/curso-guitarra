@@ -158,9 +158,22 @@ body.insession{overflow:hidden}
 .sesstime.running{color:#8fd4bf}
 .sesscontent{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 10px}
 .sesscontent .exercise{border-top:none;padding-top:2px}
-.sessbpm{display:none;align-items:center;justify-content:center;gap:12px;padding:7px 14px;
+.sessbpm{display:flex;align-items:center;justify-content:center;gap:12px;padding:7px 14px;
   background:var(--soft);border-top:1px solid #e2e7e4}
-.session.meton .sessbpm{display:flex}
+.sessbpm .sbdn,.sessbpm .sbup,.sessbpm .sbval{display:none}
+.session.meton .sbdn,.session.meton .sbup,.session.meton .sbval{display:block}
+.sessbpm .sbmic.on{background:var(--green);border-color:var(--green)}
+.miccount{display:flex;align-items:center;gap:14px;padding:10px 14px;background:#17212b;color:#eef3f0}
+.miccount .mcbig{width:76px;height:76px;flex:none;border-radius:50%;border:3px solid #2f4254;
+  background:#1d2a37;color:white;font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}
+.miccount .mcbig.pop{animation:mcpop .18s}
+.miccount .mcbig.zeroed{border-color:#c0392b;color:#ff8a7a}
+@keyframes mcpop{50%{transform:scale(1.12)}}
+.miccount .mcinfo{display:flex;flex-direction:column;gap:2px;min-width:0}
+.miccount .mcstate{font-weight:800}
+.miccount .mctempo{color:#8fd4bf;font-weight:700}
+.miccount small{color:#9fb0a8;line-height:1.35}
+.chgmic{display:block;margin:8px 0 2px;color:var(--muted);font-size:14px}
 .sessbpm button{width:56px;height:38px;border-radius:10px;border:1px solid #d5dcd7;background:white;
   font-size:16px;font-weight:800;color:var(--ink)}
 .sessbpm .sbval{min-width:86px;text-align:center;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
