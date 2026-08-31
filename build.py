@@ -55,9 +55,12 @@ def main():
     if not (icons / "icon-512.png").exists():
         subprocess.run([sys.executable, str(ROOT / "tools" / "make_icons.py")], check=True)
 
+    # fragmentos v2 (rediseño aprobado 2026-08-31): reemplazan días completos
+    v2_frags = sorted(ROOT.glob("original/curso-v2-*.html"))
+
     # versión = hash del contenido que cachea el SW
     h = hashlib.sha1()
-    for p in [ORIGINAL, ASSETS / "app.css", ASSETS / "app.js", ASSETS / "sw.js"] + samples:
+    for p in [ORIGINAL, ASSETS / "app.css", ASSETS / "app.js", ASSETS / "sw.js"] + samples + v2_frags:
         h.update(p.read_bytes())
     version = h.hexdigest()[:10]
 
@@ -81,6 +84,22 @@ def main():
         "integrado de esta app (botón ♩): ponle los BPM que pida el ejercicio.</p>",
         1,
     )
+
+    # v2: cada sección <section class="day"> de un fragmento reemplaza a la del
+    # mismo data-day en el original (el original en disco queda intacto)
+    for frag in v2_frags:
+        ftext = frag.read_text(encoding="utf-8")
+        secs = re.findall(r'<section class="day"[^>]*>.*?</section>', ftext, re.S)
+        for sec in secs:
+            day = re.search(r'data-day="(\d+)"', sec).group(1)
+            pat = re.compile(
+                rf'<section class="day" id="day-{day}" data-day="{day}"[^>]*>.*?</section>',
+                re.S,
+            )
+            html, n = pat.subn(lambda _m, s=sec: s, html, count=1)
+            if n != 1:
+                raise SystemExit(f"{frag.name}: no encontré el día {day} en el original")
+        print(f"v2: {frag.name} reemplazó {len(secs)} días")
 
     # el CSS de la app va al FINAL del <head>, después del <style> del curso,
     # para que sus reglas (safe areas, paddings) ganen en la cascada
