@@ -4,6 +4,8 @@
    Así la tabbar queda en el flujo normal, anclada abajo, sin depender de position:fixed
    (que en PWAs standalone de iOS se desplaza cuando la vista es corta). */
 html{height:100%;height:var(--appH,100dvh);overscroll-behavior:none;background:var(--paper)}
+/* sin zoom por doble tap (p. ej. al tocar rápido +5/−5 del metrónomo); el pinch sigue vivo */
+*{touch-action:manipulation}
 body{height:100%;height:var(--appH,100dvh);margin:0;overflow:hidden;position:relative;
   display:flex;flex-direction:column;-webkit-tap-highlight-color:transparent}
 main{flex:1 1 0;min-height:0;width:100%;margin:0 auto;overflow-y:auto;
@@ -185,6 +187,15 @@ body.insession{overflow:hidden}
 .sesstimerbtn{flex:1}
 .sessmet,.sessfoot .sessrec{width:58px;background:white;color:var(--ink);font-size:20px}
 .sessmet.on{background:var(--green);color:white;border-color:var(--green);animation:metpulse 1s infinite}
+/* "Grabar" (punto rojo) y "Contar" (🎤) con etiqueta: eran dos micrófonos iguales */
+.sessfoot .sessrec{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.sessfoot .sessrec small{font-size:9px;font-weight:800;line-height:1}
+.recdot{width:13px;height:13px;border-radius:50%;background:#c0392b;display:block}
+.sessrec.rec .recdot{background:white}
+.sessbpm .sbmic{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1px;height:44px;font-size:14px;line-height:1}
+.sessbpm .sbmic small{font-size:9px;font-weight:800}
+.sessbpm .sbmic.on{color:white}
 .sessbanner{display:none;align-items:center;gap:9px;padding:11px 14px;background:var(--green);color:white;font-weight:800}
 .sessbanner button{background:#ffffff;color:var(--green);border:none;border-radius:9px;padding:10px 13px;font-weight:800}
 .sessbanner span{flex:1;font-size:17px}

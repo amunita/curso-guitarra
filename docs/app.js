@@ -71,7 +71,8 @@ function nearestSample(midi) {
   return bd <= 6 ? best : null;
 }
 fetchSamples();
-window.__gcaudio = () => ({ pendientes: Object.keys(sampleRaw).length, decodificadas: Object.keys(sampleBuf).length, ctx: !!ctx });
+window.__gcaudio = () => ({ pendientes: Object.keys(sampleRaw).length, decodificadas: Object.keys(sampleBuf).length, ctx: !!ctx,
+  mic: mic.on ? { bandRms: mic.dbg.bandRms, flux: mic.dbg.flux, fluxAvg: mic.fluxAvg, floor: mic.floor, count: mic.count } : null });
 
 // cuerda pulsada por Karplus-Strong, con ruido inicial suavizado (timbre nylon)
 function pluckBuf(midi) {
@@ -1132,7 +1133,7 @@ function startSession(dayIdx) {
       </div>
     </div>
     <div class="sessbpm">
-      <button class="sbmic" aria-label="Contador por micrófono">🎤</button>
+      <button class="sbmic" aria-label="Contador de golpes por micrófono">🎤<small>Contar</small></button>
       <button class="sbdn" aria-label="Bajar tempo">−5</button>
       <span class="sbval"></span>
       <button class="sbup" aria-label="Subir tempo">+5</button>
@@ -1141,7 +1142,7 @@ function startSession(dayIdx) {
       <button class="sessprev" aria-label="Anterior">←</button>
       <button class="sesstimerbtn">▶ Empezar</button>
       <button class="sessmet" aria-label="Metrónomo">${ICONS.metronome}</button>
-      <button class="sessrec" aria-label="Grabarme">${ICONS.mic}</button>
+      <button class="sessrec" aria-label="Grabarme"><span class="recdot"></span><small>Grabar</small></button>
       <button class="sessnext" aria-label="Siguiente">→</button>
     </footer>`;
   document.body.append(ov);
@@ -1632,11 +1633,15 @@ function renderRecs(day) {
    Cuenta cada ataque (rasgueo/nota) que oye el micrófono. Andrés juzga la
    calidad: si para de tocar (~1,2 s de silencio), el contador vuelve a 0.
    Con el metrónomo andando compara cada ataque con el clic más cercano y
-   dice si va al tempo. El micrófono pasa por dos pasa-bajos a 900 Hz para
-   que el clic del metrónomo (1250/1800 Hz) no se cuente como golpe. */
-const mic = { stream: null, an: null, buf: null, raf: 0, on: false, count: 0,
-  env: 0, floor: 0.004, lastOnset: 0, lastSound: 0, offsets: [],
-  onCount: null, onReset: null, onTempo: null, silenceMs: 1200 };
+   dice si va al tempo.
+   Detección por FLUJO ESPECTRAL en la banda 60–1000 Hz: un ataque nuevo
+   cambia el espectro aunque el acorde anterior siga sonando (el salto de
+   RMS no lo ve, porque la energía total casi no sube). La banda termina
+   bajo el clic del metrónomo (1250/1800 Hz), así que el clic no cuenta. */
+const mic = { stream: null, an: null, buf: null, prev: null, timer: 0, on: false,
+  count: 0, floor: 0.003, fluxAvg: 0, lo: 3, hi: 42, lastOnset: 0, lastSound: 0,
+  offsets: [], onCount: null, onReset: null, onTempo: null, silenceMs: 1200,
+  dbg: { bandRms: 0, flux: 0 } };
 
 async function micStart() {
   if (mic.on) return true;
@@ -1647,51 +1652,65 @@ async function micStart() {
     });
   } catch (e) { return false; }
   const src = ctx.createMediaStreamSource(mic.stream);
-  const lp1 = ctx.createBiquadFilter(); lp1.type = 'lowpass'; lp1.frequency.value = 900;
-  const lp2 = ctx.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 900;
   mic.an = ctx.createAnalyser();
   mic.an.fftSize = 2048;
-  src.connect(lp1); lp1.connect(lp2); lp2.connect(mic.an);
-  mic.buf = new Float32Array(mic.an.fftSize);
-  mic.on = true; mic.count = 0; mic.env = 0; mic.floor = 0.004;
+  mic.an.smoothingTimeConstant = 0; // sin suavizado: el flujo necesita ver el salto
+  src.connect(mic.an);
+  const binHz = ctx.sampleRate / mic.an.fftSize;
+  mic.lo = Math.max(1, Math.round(60 / binHz));
+  mic.hi = Math.min(mic.an.frequencyBinCount - 1, Math.round(1000 / binHz));
+  mic.buf = new Float32Array(mic.an.frequencyBinCount);
+  mic.prev = new Float32Array(mic.hi + 1);
+  mic.on = true; mic.count = 0; mic.floor = 0.003; mic.fluxAvg = 0;
   mic.lastOnset = 0; mic.lastSound = performance.now(); mic.offsets = [];
   mic.silenceMs = 1200;
-  mic.raf = requestAnimationFrame(micLoop);
+  // setInterval y no rAF: en iOS rAF se congela con la pantalla atenuada o
+  // durante gestos, y se perdían ataques
+  mic.timer = setInterval(micLoop, 25);
   return true;
 }
 function micStop() {
   mic.on = false;
-  cancelAnimationFrame(mic.raf);
+  clearInterval(mic.timer);
   if (mic.stream) { mic.stream.getTracks().forEach(t => t.stop()); mic.stream = null; }
   mic.an = null; mic.onCount = mic.onReset = mic.onTempo = null;
 }
 function micLoop() {
   if (!mic.on) return;
-  mic.an.getFloatTimeDomainData(mic.buf);
-  let s = 0;
-  for (let i = 0; i < mic.buf.length; i++) s += mic.buf[i] * mic.buf[i];
-  const rms = Math.sqrt(s / mic.buf.length);
+  mic.an.getFloatFrequencyData(mic.buf);
+  let flux = 0, e = 0;
+  for (let i = mic.lo; i <= mic.hi; i++) {
+    const lin = Math.pow(10, mic.buf[i] / 20); // dB → amplitud lineal
+    const d = lin - mic.prev[i];
+    if (d > 0) flux += d;
+    e += lin * lin;
+    mic.prev[i] = lin;
+  }
+  const n = mic.hi - mic.lo + 1;
+  flux /= n;
+  const bandRms = Math.sqrt(e / n);
+  mic.dbg.bandRms = bandRms; mic.dbg.flux = flux;
   const now = performance.now();
-  // piso de ruido adaptativo (solo sube lento, baja rápido)
-  if (rms < mic.floor) mic.floor = Math.max(0.002, mic.floor * 0.995);
-  else if (rms < mic.floor * 2.5) mic.floor = mic.floor * 1.01;
-  const soundTh = Math.max(0.008, mic.floor * 3);
-  if (rms > soundTh) mic.lastSound = now;
-  // ataque: salto claro sobre la envolvente, con antirrebote de 200 ms
-  const onsetTh = Math.max(0.02, mic.floor * 6);
-  if (rms > onsetTh && rms > mic.env * 1.9 && now - mic.lastOnset > 200) {
+  // piso de ruido adaptativo (baja rápido, sube lento)
+  if (bandRms < mic.floor) mic.floor = Math.max(0.0015, mic.floor * 0.995);
+  else if (bandRms < mic.floor * 2.5) mic.floor = mic.floor * 1.01;
+  const soundTh = Math.max(0.005, mic.floor * 3);
+  if (bandRms > soundTh) mic.lastSound = now;
+  // ataque: flujo espectral sobre su promedio móvil, antirrebote 120 ms
+  if (flux > Math.max(0.0025, mic.fluxAvg * 2.2) && bandRms > soundTh &&
+      now - mic.lastOnset > 120) {
     mic.lastOnset = now;
     mic.count++;
     if (met.on) micTempoMark();
     if (mic.onCount) mic.onCount(mic.count);
   }
-  mic.env = Math.max(rms, mic.env * 0.93);
+  // promedio móvil del flujo, acotado para que un golpe fuerte no lo dispare
+  mic.fluxAvg = mic.fluxAvg * 0.92 + Math.min(flux, mic.fluxAvg * 3 + 0.0025) * 0.08;
   // silencio sostenido → contador a cero (Andrés paró porque no le salió)
   if (mic.count > 0 && now - mic.lastSound > mic.silenceMs) {
     mic.count = 0; mic.offsets = [];
     if (mic.onReset) mic.onReset();
   }
-  mic.raf = requestAnimationFrame(micLoop);
 }
 function micTempoMark() {
   const beat = 60 / met.bpm;
