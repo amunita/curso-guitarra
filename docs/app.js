@@ -316,6 +316,11 @@ const FINGERING = {
   'Esus4': { 5: '2', 4: '3', 3: '4' }
 };
 const PC_LAT = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
+const PC_ANG = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+/* ajustes de la app (pantalla Ajustes) */
+const cfg = Object.assign({ notation: 'lat', driveClientId: '' }, load('gc:cfg', {}));
+function cfgSave() { store('gc:cfg', { notation: cfg.notation, driveClientId: cfg.driveClientId }); }
+function noteTxt(pc) { return (cfg.notation === 'ang' ? PC_ANG : PC_LAT)[pc]; }
 function decorateChordDiv(div) {
   if (div.dataset.gcdec) return;
   div.dataset.gcdec = '1';
@@ -346,7 +351,7 @@ function decorateChordDiv(div) {
   const seen = new Set(), pcs = [];
   chordMidis(parsed.frets).forEach(m => {
     const pc = m % 12;
-    if (!seen.has(pc)) { seen.add(pc); pcs.push(PC_LAT[pc]); }
+    if (!seen.has(pc)) { seen.add(pc); pcs.push(noteTxt(pc)); }
   });
   if (pcs.length) {
     const d = document.createElement('div');
@@ -850,7 +855,10 @@ const ICONS = (() => {
     mic: wrap('<rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/>'),
     up: wrap('<path d="M12 15V4"/><path d="m7 8.5 5-4.5 5 4.5"/><path d="M4 20h16"/>'),
     down: wrap('<path d="M12 4v11"/><path d="m7 10.5 5 4.5 5-4.5"/><path d="M4 20h16"/>'),
-    stop: wrap('<rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none"/>')
+    stop: wrap('<rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none"/>'),
+    gear: wrap('<circle cx="12" cy="12" r="3.1"/><path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6' +
+      'M5.4 5.4l1.8 1.8M16.8 16.8l1.8 1.8M18.6 5.4l-1.8 1.8M7.2 16.8l-1.8 1.8"/>'),
+    cloud: wrap('<path d="M7 18.5a4.5 4.5 0 0 1-.4-9A5.5 5.5 0 0 1 17.3 10a3.8 3.8 0 0 1-.6 7.6z"/><path d="M12 12.5V21"/><path d="m8.8 17.8 3.2 3 3.2-3"/>')
   };
 })();
 
@@ -863,6 +871,7 @@ function setView(v) {
   }
   document.body.dataset.view = v;
   if (v === 'hoy') renderHome();
+  if (v === 'ajustes') renderAjRecs();
   document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
   const m = document.querySelector('main');
   if (m) m.scrollTop = 0;
@@ -871,7 +880,8 @@ function injectTabbar() {
   const bar = document.createElement('nav');
   bar.className = 'tabbar';
   [['hoy', ICONS.home, 'Hoy'], ['curso', ICONS.book, 'Curso'], ['songs', ICONS.music, 'Canciones'],
-   ['tuner', ICONS.gauge, 'Afinador'], ['ref', ICONS.chords, 'Referencia']].forEach(([v, ico, lbl]) => {
+   ['tuner', ICONS.gauge, 'Afinador'], ['ref', ICONS.chords, 'Referencia'],
+   ['ajustes', ICONS.gear, 'Ajustes']].forEach(([v, ico, lbl]) => {
     const b = document.createElement('button');
     b.dataset.view = v;
     b.innerHTML = `<span class="ico">${ico}</span>${lbl}`;
@@ -1104,17 +1114,7 @@ function buildRefView() {
       <div class="notebtns" id="notebtns"></div>
       <div class="fbwrap" id="notefb"></div>
     </div>
-    <div class="refblock">
-      <h3>Respaldo de tu progreso</h3>
-      <p class="legend">Días completados, notas, canciones, récords y ajustes. Exporta el archivo y
-      guárdalo (o envíatelo); impórtalo en otro dispositivo para seguir donde ibas.
-      Las grabaciones de audio no viajan en el respaldo (viven solo en este dispositivo).</p>
-      <div class="bakrow">
-        <button id="bakexp">${ICONS.up} Exportar respaldo</button>
-        <button id="bakimp" class="ghost">${ICONS.down} Importar respaldo</button>
-        <input id="bakfile" type="file" accept="application/json,.json" hidden>
-      </div>
-    </div>`;
+    `;
   document.querySelector('main').append(view);
   const ccsel = view.querySelector('#ccsel');
   ccsel.innerHTML = Object.keys(CHORDS).sort().map(n => `<option>${n}</option>`).join('');
@@ -1123,9 +1123,6 @@ function buildRefView() {
     ccgo.disabled = true;
     chordCheck(ccsel.value, view.querySelector('.ccout')).finally(() => { ccgo.disabled = false; });
   });
-  view.querySelector('#bakexp').addEventListener('click', exportProgress);
-  view.querySelector('#bakimp').addEventListener('click', () => view.querySelector('#bakfile').click());
-  view.querySelector('#bakfile').addEventListener('change', e => importProgress(e.target));
 
   const grid = view.querySelector('#chgrid');
   const names = Object.keys(CHORDS).sort();
@@ -1150,7 +1147,7 @@ function buildRefView() {
   const btns = view.querySelector('#notebtns');
   NOTE_LAT.forEach((lat, pc) => {
     const b = document.createElement('button');
-    b.textContent = `${lat} · ${NOTE_ANG[pc]}`;
+    b.textContent = cfg.notation === 'ang' ? `${NOTE_ANG[pc]} · ${lat}` : `${lat} · ${NOTE_ANG[pc]}`;
     b.addEventListener('click', () => {
       btns.querySelectorAll('button').forEach(x => x.classList.remove('active'));
       b.classList.add('active');
@@ -1164,7 +1161,7 @@ function buildRefView() {
     const hl = [];
     for (let s = 1; s <= 6; s++) {
       for (let f = 0; f <= 12; f++) {
-        if ((OPEN_MIDI[s - 1] + f) % 12 === ((pc + 60) % 12)) hl.push({ s, f, label: NOTE_ANG[pc] });
+        if ((OPEN_MIDI[s - 1] + f) % 12 === ((pc + 60) % 12)) hl.push({ s, f, label: noteTxt(pc) });
       }
     }
     wrap.append(fretboard({ maxFret: 12, highlights: hl }));
@@ -1615,7 +1612,8 @@ function renderTuner(f) {
   const cents = Math.round(1200 * Math.log2(f / target.f));
   const cl = Math.max(-50, Math.min(50, cents));
   needle.style.transform = `rotate(${cl * 0.9}deg)`; // ±50 cents → ±45°
-  noteEl.textContent = target.n + ' ' + target.note.split(' · ')[0];
+  const nn = target.note.split(' · ');
+  noteEl.textContent = target.n + ' ' + (cfg.notation === 'ang' ? nn[1] : nn[0]);
   centsEl.textContent = (cents > 0 ? '+' : '') + cents + ' cents' + (Math.abs(cents) <= 5 ? ' ✓' : cents < 0 ? ' · sube' : ' · baja');
   const ok = Math.abs(cents) <= 5;
   gauge.classList.toggle('intune', ok);
@@ -1665,13 +1663,22 @@ function buildTunerView() {
 }
 
 /* ===================== respaldo de progreso ===================== */
-function exportProgress() {
+function backupJson() {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
     if (k && k.startsWith('gc:')) data[k] = localStorage.getItem(k);
   }
-  const json = JSON.stringify({ app: 'curso-guitarra', fecha: isoToday(), datos: data }, null, 1);
+  return JSON.stringify({ app: 'curso-guitarra', fecha: isoToday(), datos: data }, null, 1);
+}
+function applyBackupObj(j) {
+  if (!j || j.app !== 'curso-guitarra' || !j.datos) throw new Error('formato');
+  Object.keys(j.datos).forEach(k => { if (k.startsWith('gc:')) localStorage.setItem(k, j.datos[k]); });
+  sessionStorage.setItem('gc:view', 'ajustes');
+  location.reload();
+}
+function exportProgress() {
+  const json = backupJson();
   const file = new File([json], `progreso-guitarra-${isoToday()}.json`, { type: 'application/json' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     navigator.share({ files: [file], title: 'Progreso curso de guitarra' }).catch(() => {});
@@ -1686,12 +1693,349 @@ function exportProgress() {
 function importProgress(fileInput) {
   const f = fileInput.files && fileInput.files[0];
   if (!f) return;
-  f.text().then(txt => {
-    const j = JSON.parse(txt);
-    if (!j || j.app !== 'curso-guitarra' || !j.datos) throw new Error('formato');
-    Object.keys(j.datos).forEach(k => { if (k.startsWith('gc:')) localStorage.setItem(k, j.datos[k]); });
-    location.reload();
-  }).catch(() => alert('Ese archivo no es un respaldo válido de esta app.'));
+  f.text().then(txt => applyBackupObj(JSON.parse(txt)))
+    .catch(() => alert('Ese archivo no es un respaldo válido de esta app.'));
+}
+
+/* ===================== respaldo en Google Drive =====================
+   Usa Google Identity Services con scope drive.file (solo ve los archivos
+   que esta app crea). Requiere un OAuth Client ID propio (cfg.driveClientId). */
+const DRIVE_FILE = 'curso-guitarra-respaldo.json';
+let driveTok = null, driveGisP = null;
+function driveGis() {
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  if (!driveGisP) driveGisP = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = res;
+    s.onerror = () => { driveGisP = null; rej(new Error('No se pudo cargar Google Identity (¿sin internet?)')); };
+    document.head.append(s);
+  });
+  return driveGisP;
+}
+function driveAuth() {
+  if (!cfg.driveClientId) return Promise.reject(new Error('Falta configurar el Client ID de Google.'));
+  return driveGis().then(() => new Promise((res, rej) => {
+    const tc = google.accounts.oauth2.initTokenClient({
+      client_id: cfg.driveClientId,
+      scope: 'https://www.googleapis.com/auth/drive.file',
+      callback: t => {
+        if (t && t.access_token) { driveTok = t.access_token; res(driveTok); }
+        else rej(new Error('Google no entregó permiso.'));
+      },
+      error_callback: e => rej(new Error(e && e.message || 'Conexión cancelada.'))
+    });
+    tc.requestAccessToken({ prompt: driveTok ? '' : 'consent' });
+  }));
+}
+async function driveFind(tok) {
+  const q = encodeURIComponent(`name = '${DRIVE_FILE}' and trashed = false`);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)`,
+    { headers: { Authorization: 'Bearer ' + tok } });
+  if (!r.ok) throw new Error('Drive respondió ' + r.status);
+  const j = await r.json();
+  return (j.files && j.files[0]) || null;
+}
+async function driveSave() {
+  const tok = await driveAuth();
+  const f = await driveFind(tok);
+  const body = backupJson();
+  let r;
+  if (f) {
+    r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${f.id}?uploadType=media`,
+      { method: 'PATCH', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body });
+  } else {
+    const bnd = 'gcbak' + Date.now();
+    const meta = JSON.stringify({ name: DRIVE_FILE, mimeType: 'application/json' });
+    const mp = `--${bnd}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n` +
+      `--${bnd}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${bnd}--`;
+    r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'multipart/related; boundary=' + bnd }, body: mp });
+  }
+  if (!r.ok) throw new Error('Drive respondió ' + r.status);
+}
+async function driveRestore() {
+  const tok = await driveAuth();
+  const f = await driveFind(tok);
+  if (!f) throw new Error('Aún no hay respaldo en Drive: usa «Guardar en Drive» primero.');
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`,
+    { headers: { Authorization: 'Bearer ' + tok } });
+  if (!r.ok) throw new Error('Drive respondió ' + r.status);
+  applyBackupObj(await r.json());
+}
+
+/* ===================== pantalla Ajustes ===================== */
+/* nivel del estudiante: cada habilidad marca hasta qué semana del curso ya se domina.
+   El nivel es el prefijo continuo (las habilidades son acumulativas). */
+const LEVELQ = [
+  { q: 'Toco los acordes abiertos básicos (Em, Am, D, G, C) y suenan limpios, sin cuerdas muteadas', w: 2 },
+  { q: 'Cambio entre esos acordes sin frenar el rasgueo, incluso en corcheas', w: 3 },
+  { q: 'El acorde F me sale de forma confiable', w: 4 },
+  { q: 'Conozco el mástil: sé dónde está cada nota en las cuerdas 6ª y 5ª', w: 5 },
+  { q: 'Toco arpegios y ritmos en 6/8 a tempo', w: 6 },
+  { q: 'Las cejillas móviles (Bm, F#m, y llevarlas por el mástil) me salen donde quiera', w: 9 },
+  { q: 'Manejo 12/8 de balada, síncopa y arpegio de acompañamiento', w: 12 },
+  { q: 'Uso capo para transponer y controlo dinámica y bajo + acorde', w: 15 },
+  { q: 'Toco canciones completas (tipo Perfect, Father and Son) cantando a la vez', w: 19 },
+  { q: 'Saco los acordes de oído en canciones que no conozco', w: 22 },
+  { q: 'Diseño mi propio acompañamiento para una canción nueva', w: 23 }
+];
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installEvt = e;
+  const b = document.getElementById('pwabtn');
+  if (b) b.hidden = false;
+});
+function appVersion() {
+  const s = document.querySelector('script[src*="app.js"]');
+  const m = s && /v=([0-9a-f]+)/.exec(s.src);
+  return m ? m[1] : 'desconocida';
+}
+async function forceUpdate(btn, msg) {
+  btn.disabled = true;
+  msg.textContent = 'Buscando versión nueva…';
+  try {
+    const r = await navigator.serviceWorker.getRegistration();
+    if (r) await r.update();
+  } catch (e) {}
+  // si llegó una versión nueva, el service worker recarga solo; si no, purga dura en 3,5 s
+  setTimeout(async () => {
+    msg.textContent = 'Limpiando caché y recargando…';
+    try {
+      const r = await navigator.serviceWorker.getRegistration();
+      if (r) await r.unregister();
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    } catch (e) {}
+    location.replace(location.pathname + '?nc=' + Date.now());
+  }, 3500);
+}
+function renderAjRecs() {
+  const box = document.getElementById('ajrecs');
+  if (!box) return;
+  recListAll().then(items => {
+    if (!items.length) {
+      box.innerHTML = '<p class="legend">Aún no hay grabaciones. Se crean con el botón 🎙 dentro de una sesión.</p>';
+      return;
+    }
+    box.innerHTML = '';
+    items.sort((a, b) => b.ts - a.ts).forEach(it => {
+      const d = new Date(it.ts);
+      const row = document.createElement('div');
+      row.className = 'recrow';
+      const lbl = document.createElement('span');
+      lbl.textContent = `Día ${it.day} · ${d.toLocaleDateString('es-CL')} ` +
+        d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      const au = document.createElement('audio');
+      au.controls = true; au.preload = 'none';
+      au.src = URL.createObjectURL(it.blob);
+      const del = document.createElement('button');
+      del.className = 'danger'; del.textContent = '✕';
+      del.addEventListener('click', () => {
+        if (del.dataset.arm) recDel(it.id).then(() => {
+          renderAjRecs();
+          const day = DAYS[it.day - 1];
+          if (day) renderRecs(day);
+        });
+        else {
+          del.dataset.arm = '1'; del.textContent = '¿Borrar?';
+          setTimeout(() => { del.dataset.arm = ''; del.textContent = '✕'; }, 2500);
+        }
+      });
+      row.append(lbl, au, del);
+      box.append(row);
+    });
+  });
+}
+function buildAjustesView() {
+  const view = document.createElement('section');
+  view.id = 'view-ajustes';
+  view.className = 'view';
+  view.innerHTML = `<div class="eyebrow">Ajustes</div><h2>Configuración</h2>
+    <div class="refblock" style="border:none;margin-top:6px;padding-top:0">
+      <h3>Notación de las notas</h3>
+      <p class="legend">Cómo se nombran las notas en acordes, diapasón y afinador.</p>
+      <div class="segrow">
+        <button data-nt="lat">Do · Re · Mi</button>
+        <button data-nt="ang">C · D · E</button>
+      </div>
+    </div>
+    <div class="refblock">
+      <h3>Nivel del estudiante</h3>
+      <p class="legend">Marca solo lo que ya haces con seguridad (sin dudar, a tempo). Con eso la app
+      calcula desde qué día del curso te corresponde partir y puede marcar los anteriores como completados.</p>
+      <div class="lvlq" id="lvlq"></div>
+      <div class="lvlout" id="lvlout"></div>
+    </div>
+    <div class="refblock">
+      <h3>Actualización</h3>
+      <div class="ajver">Versión instalada: <code>${appVersion()}</code></div>
+      <div class="bakrow"><button id="ajupd">Forzar actualización</button></div>
+      <div class="ajmsg" id="ajupdmsg"></div>
+    </div>
+    <div class="refblock">
+      <h3>🎙 Grabaciones de sesiones</h3>
+      <p class="legend">Todo lo grabado en tus sesiones, de la más reciente a la más antigua.
+      Viven solo en este dispositivo (no viajan en el respaldo).</p>
+      <div class="ajrecs" id="ajrecs"></div>
+    </div>
+    <div class="refblock">
+      <h3>Respaldo local</h3>
+      <p class="legend">Días completados, notas, canciones, récords y ajustes en un archivo. Expórtalo y
+      guárdalo (o envíatelo); impórtalo en otro dispositivo para seguir donde ibas.</p>
+      <div class="bakrow">
+        <button id="bakexp">${ICONS.up} Exportar respaldo</button>
+        <button id="bakimp" class="ghost">${ICONS.down} Importar respaldo</button>
+        <input id="bakfile" type="file" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <div class="refblock">
+      <h3>Respaldo en Google Drive</h3>
+      <p class="legend" id="drvhelp"></p>
+      <input class="cfgtxt" id="drvcid" type="text" spellcheck="false"
+        placeholder="Client ID de Google (…apps.googleusercontent.com)">
+      <div class="bakrow">
+        <button id="drvsave">${ICONS.cloud} Guardar en Drive</button>
+        <button id="drvrest" class="ghost">Restaurar desde Drive</button>
+      </div>
+      <div class="ajmsg" id="drvmsg"></div>
+    </div>
+    <div class="refblock">
+      <h3>Instalar como app</h3>
+      <p class="legend">En Android (Chrome): menú ⋮ → «Instalar app» o «Agregar a pantalla principal».
+      En iPhone (Safari): Compartir → «Agregar a inicio». Instalada funciona igual, con micrófono y
+      metrónomo, y abre a pantalla completa.</p>
+      <div class="bakrow"><button id="pwabtn" hidden>Instalar en este dispositivo</button></div>
+    </div>`;
+  document.querySelector('main').append(view);
+
+  // notación
+  view.querySelectorAll('.segrow button').forEach(b => {
+    b.classList.toggle('active', b.dataset.nt === cfg.notation);
+    b.addEventListener('click', () => {
+      if (b.dataset.nt === cfg.notation) return;
+      cfg.notation = b.dataset.nt;
+      cfgSave();
+      sessionStorage.setItem('gc:view', 'ajustes');
+      location.reload(); // reconstruye acordes, diapasón y afinador con la notación nueva
+    });
+  });
+
+  // nivel del estudiante
+  const lq = view.querySelector('#lvlq'), lout = view.querySelector('#lvlout');
+  const savedLvl = load('gc:level', { checks: [] });
+  LEVELQ.forEach((it, i) => {
+    const lab = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = (savedLvl.checks || []).includes(i);
+    cb.addEventListener('change', lvlRender);
+    lab.append(cb, document.createTextNode(it.q));
+    lq.append(lab);
+  });
+  function lvlRender() {
+    const checks = [...lq.querySelectorAll('input')].map(c => c.checked);
+    let k = 0;
+    while (k < LEVELQ.length && checks[k]) k++;
+    const week = k ? LEVELQ[k - 1].w : 0;
+    const days = Math.min(week * 7, DAYS.length);
+    store('gc:level', { checks: checks.map((c, i) => c ? i : -1).filter(i => i >= 0), week });
+    const gap = checks.slice(k).some(c => c)
+      ? '<br><small>Hay habilidades marcadas salteándose anteriores: el nivel se calcula con lo que dominas en orden.</small>' : '';
+    if (!week) {
+      lout.innerHTML = 'Parte desde el <b>Día 1</b>: el curso construye todo desde cero.' + gap;
+      return;
+    }
+    const startDay = Math.min(days + 1, DAYS.length);
+    lout.innerHTML = `Dominas hasta la <b>semana ${week}</b>. Te corresponde partir en el <b>Día ${startDay}</b>.${gap}
+      <div class="bakrow" style="margin-top:9px"><button id="lvlgo">Marcar días 1–${days} ✓ y partir ahí</button></div>`;
+    const go = lout.querySelector('#lvlgo');
+    go.addEventListener('click', () => {
+      if (!go.dataset.arm) {
+        go.dataset.arm = '1';
+        go.textContent = `¿Confirmas? Marca ${days} días como completados`;
+        setTimeout(() => {
+          go.dataset.arm = '';
+          go.textContent = `Marcar días 1–${days} ✓ y partir ahí`;
+        }, 4000);
+        return;
+      }
+      const done = doneSet();
+      const dates = load('gc:doneDates', {});
+      for (let n = 1; n <= days; n++) { done.add(n); if (!dates[n]) dates[n] = isoToday(); }
+      store('gc:done', [...done]);
+      store('gc:doneDates', dates);
+      renderDoneButtons();
+      renderHome();
+      setView('curso');
+      gotoDay(startDay - 1);
+    });
+  }
+  lvlRender();
+
+  // actualización
+  const ajupd = view.querySelector('#ajupd');
+  ajupd.addEventListener('click', () => forceUpdate(ajupd, view.querySelector('#ajupdmsg')));
+
+  // respaldo local
+  view.querySelector('#bakexp').addEventListener('click', exportProgress);
+  view.querySelector('#bakimp').addEventListener('click', () => view.querySelector('#bakfile').click());
+  view.querySelector('#bakfile').addEventListener('change', e => importProgress(e.target));
+
+  // Drive
+  const drvhelp = view.querySelector('#drvhelp'), drvcid = view.querySelector('#drvcid'),
+    drvmsg = view.querySelector('#drvmsg'), drvsave = view.querySelector('#drvsave'),
+    drvrest = view.querySelector('#drvrest');
+  const drvHelpTxt = () => {
+    drvhelp.innerHTML = cfg.driveClientId
+      ? `Guarda el archivo <code>${DRIVE_FILE}</code> en tu Drive (solo esta app lo ve).
+         Restaurar reemplaza el progreso de este dispositivo por el del respaldo.`
+      : `Para conectar Drive falta un <b>Client ID</b> de Google (gratis, se crea una sola vez en
+         console.cloud.google.com → APIs y servicios → Credenciales → ID de cliente OAuth, tipo
+         «Aplicación web», con origen <code>https://amunita.github.io</code>). Pégalo aquí abajo.`;
+  };
+  drvHelpTxt();
+  drvcid.value = cfg.driveClientId;
+  drvcid.addEventListener('change', () => {
+    cfg.driveClientId = drvcid.value.trim();
+    cfgSave();
+    drvHelpTxt();
+  });
+  drvsave.addEventListener('click', async () => {
+    drvsave.disabled = true;
+    drvmsg.textContent = 'Conectando con Google…';
+    try {
+      await driveSave();
+      drvmsg.textContent = '✅ Respaldo guardado en Drive (' +
+        new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) + ').';
+    } catch (e) { drvmsg.textContent = '⚠️ ' + e.message; }
+    drvsave.disabled = false;
+  });
+  drvrest.addEventListener('click', async () => {
+    if (!drvrest.dataset.arm) {
+      drvrest.dataset.arm = '1';
+      drvrest.textContent = '¿Seguro? Reemplaza lo local';
+      setTimeout(() => { drvrest.dataset.arm = ''; drvrest.textContent = 'Restaurar desde Drive'; }, 4000);
+      return;
+    }
+    drvrest.dataset.arm = '';
+    drvrest.textContent = 'Restaurar desde Drive';
+    drvrest.disabled = true;
+    drvmsg.textContent = 'Buscando respaldo…';
+    try { await driveRestore(); }
+    catch (e) { drvmsg.textContent = '⚠️ ' + e.message; drvrest.disabled = false; }
+  });
+
+  // instalar (Android dispara beforeinstallprompt; iOS no lo soporta)
+  const pwabtn = view.querySelector('#pwabtn');
+  if (installEvt) pwabtn.hidden = false;
+  pwabtn.addEventListener('click', () => {
+    if (!installEvt) return;
+    installEvt.prompt();
+    installEvt = null;
+    pwabtn.hidden = true;
+  });
 }
 
 /* ===================== grabaciones (IndexedDB) ===================== */
@@ -1727,6 +2071,12 @@ function recDel(id) {
     tx.objectStore('recs').delete(id);
     tx.oncomplete = res;
   }));
+}
+function recListAll() {
+  return recdb().then(db => new Promise((res, rej) => {
+    const q = db.transaction('recs').objectStore('recs').getAll();
+    q.onsuccess = () => res(q.result || []); q.onerror = () => rej(q.error);
+  })).catch(() => []);
 }
 function renderRecs(day) {
   const box = day.querySelector('.recs');
@@ -2187,9 +2537,9 @@ async function chordCheck(name, out) {
   const res = want.map(pc => ({ pc, ok: chroma[pc] >= max * 0.18 }));
   const okAll = res.every(r => r.ok);
   out.innerHTML = res.map(r =>
-    `<span class="ccnote ${r.ok ? 'ok' : 'no'}">${PC_LAT[r.pc]} ${r.ok ? '✓' : '✗'}</span>`).join(' ') +
+    `<span class="ccnote ${r.ok ? 'ok' : 'no'}">${noteTxt(r.pc)} ${r.ok ? '✓' : '✗'}</span>`).join(' ') +
     `<div class="ccverdict">${okAll ? '✅ ¡Suena completo!' :
-      '⚠️ Falta que suene ' + res.filter(r => !r.ok).map(r => PC_LAT[r.pc]).join(' y ') +
+      '⚠️ Falta que suene ' + res.filter(r => !r.ok).map(r => noteTxt(r.pc)).join(' y ') +
       ': revisa que esas cuerdas no estén muteadas.'}</div>`;
 }
 
@@ -2368,6 +2718,7 @@ function init() {
   buildSongsView();
   buildRefView();
   buildTunerView();
+  buildAjustesView();
   buildHomeView();
   wireChordTaps();
   // botón de progreso junto al selector de día
@@ -2384,7 +2735,9 @@ function init() {
   if (!/day-\d+/.test(location.hash) && saved != null && saved !== currentDayIndex()) gotoDay(saved);
   const cur = currentDayIndex();
   if (cur >= 0) buildDemos(DAYS[cur]);
-  setView(/day-\d+/.test(location.hash) ? 'curso' : 'hoy');
+  const gv = sessionStorage.getItem('gc:view');
+  if (gv) sessionStorage.removeItem('gc:view');
+  setView(gv || (/day-\d+/.test(location.hash) ? 'curso' : 'hoy'));
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
 else init();

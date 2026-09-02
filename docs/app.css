@@ -44,12 +44,15 @@ body[data-view="ref"] .day,body[data-view="ref"] .sources,
 body[data-view="hoy"] .hero,body[data-view="hoy"] .intro,body[data-view="hoy"] .controls,
 body[data-view="hoy"] .day,body[data-view="hoy"] .sources,
 body[data-view="tuner"] .hero,body[data-view="tuner"] .intro,body[data-view="tuner"] .controls,
-body[data-view="tuner"] .day,body[data-view="tuner"] .sources{display:none!important}
+body[data-view="tuner"] .day,body[data-view="tuner"] .sources,
+body[data-view="ajustes"] .hero,body[data-view="ajustes"] .intro,body[data-view="ajustes"] .controls,
+body[data-view="ajustes"] .day,body[data-view="ajustes"] .sources{display:none!important}
 .view{display:none;background:white;border:1px solid var(--line);border-radius:18px;padding:19px;margin-top:8px}
 body[data-view="songs"] #view-songs{display:block}
 body[data-view="ref"] #view-ref{display:block}
 body[data-view="hoy"] #view-hoy{display:block}
 body[data-view="tuner"] #view-tuner{display:block}
+body[data-view="ajustes"] #view-ajustes{display:block}
 
 /* ---- refinamiento gráfico del curso ---- */
 .day,.intro,.view{box-shadow:0 1px 2px #17212b0a}
@@ -386,3 +389,19 @@ body.insession{overflow:hidden}
   .daydone{margin-left:0}
   .proggrid{grid-template-columns:repeat(13,1fr)}
 }
+
+/* ---- ajustes ---- */
+.segrow{display:flex;gap:8px;flex-wrap:wrap}
+.segrow button{background:white;color:var(--ink);padding:9px 14px;border-radius:10px}
+.segrow button.active{background:var(--green);color:white;border-color:var(--green)}
+.lvlq{display:flex;flex-direction:column;gap:7px;margin:10px 0}
+.lvlq label{display:flex;align-items:flex-start;gap:9px;background:var(--soft);border:1px solid var(--line);
+  border-radius:10px;padding:9px 11px;font-size:14px;line-height:1.35}
+.lvlq input{margin-top:2px;flex:none;width:17px;height:17px;accent-color:var(--green)}
+.lvlout{margin-top:10px;padding:11px 13px;border-radius:10px;background:var(--soft);border:1px solid var(--line);font-size:14px}
+.lvlout b{color:var(--green)}
+.ajver{color:var(--muted);font-size:13px;margin:4px 0 8px}
+.ajmsg{margin-top:8px;font-size:13px;color:var(--muted)}
+.cfgtxt{width:100%;max-width:420px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+  font-size:13px;font-family:ui-monospace,monospace;margin:6px 0}
+.ajrecs .recrow span{width:auto;min-width:120px}
