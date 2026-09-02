@@ -29,7 +29,13 @@ HEAD_INJECT = """<link rel="manifest" href="manifest.webmanifest">
 """
 
 BODY_INJECT = """<script defer src="app.js?v={v}"></script>
-<script>if('serviceWorker' in navigator){{addEventListener('load',()=>navigator.serviceWorker.register('sw.js'))}}</script>
+<script>if('serviceWorker' in navigator){{addEventListener('load',()=>{{
+navigator.serviceWorker.register('sw.js').then(r=>{{r.update();
+document.addEventListener('visibilitychange',()=>{{if(document.visibilityState==='visible')r.update()}})}});
+/* cuando el SW nuevo toma control, recargar para no quedar con app.js viejo + cache nuevo */
+let had=!!navigator.serviceWorker.controller;
+navigator.serviceWorker.addEventListener('controllerchange',()=>{{if(had)location.reload();had=true}});
+}})}}</script>
 """
 
 

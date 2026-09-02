@@ -60,6 +60,18 @@ function decodeSample(midi) {
   delete sampleRaw[midi];
   ctx.decodeAudioData(ab, buf => { sampleBuf[midi] = buf; }, () => {});
 }
+const SAMPLE_TOTAL = Object.keys(SAMPLE_MIDI).length;
+let sampleGaveUp = false; // sin red y sin cache: no esperar en cada play
+function samplesReady() {
+  if (sampleGaveUp || Object.keys(sampleBuf).length >= SAMPLE_TOTAL) return Promise.resolve();
+  return new Promise(res => {
+    const t0 = performance.now();
+    const iv = setInterval(() => {
+      if (Object.keys(sampleBuf).length >= SAMPLE_TOTAL) { clearInterval(iv); res(); }
+      else if (performance.now() - t0 > 1500) { sampleGaveUp = true; clearInterval(iv); res(); }
+    }, 50);
+  });
+}
 function nearestSample(midi) {
   let best = null, bd = 1e9;
   for (const k in sampleBuf) {
@@ -346,13 +358,17 @@ function stopPlayback() {
   document.querySelectorAll('.play.playing').forEach(b => { b.classList.remove('playing'); b.textContent = b.dataset.lbl || '▶'; });
 }
 // events: [{at, midis:[..], vel, strumMs, fb}] — `at` en pulsos (puede ser fraccionario)
-function playEvents(events, bpm, sigBeats, btn, onBeatFlash) {
+async function playEvents(events, bpm, sigBeats, btn, onBeatFlash) {
   // el mismo botón alterna: tocando → detener
   if (btn && btn.classList.contains('playing')) { stopPlayback(); return; }
   audio();
   stopPlayback();
   if (!events.length) return;
+  // si las muestras de nylon aún se están decodificando, esperarlas (máx 1,5 s):
+  // sin esto la primera demo sonaba con el sintetizador de respaldo
   const id = playSession;
+  await samplesReady();
+  if (id !== playSession) return; // otro play/stop ganó durante la espera
   const spb = 60 / bpm;
   const useMet = met.on;             // metrónomo activado → count-in + clic durante la demo
   const wasRunning = met.on;
@@ -1420,11 +1436,8 @@ function detectPitch(buf, sr) {
 async function tunerStart() {
   if (tuner.on) return true;
   const view = document.getElementById('view-tuner');
-  try {
-    tuner.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-    });
-  } catch (e) {
+  tuner.stream = await getMicStream();
+  if (!tuner.stream) {
     view.querySelector('.tunerr').textContent =
       'Sin acceso al micrófono. Autorízalo en Ajustes → Safari → Micrófono (y usa HTTPS). ' +
       'Mientras tanto puedes afinar de oído con los botones de cada cuerda.';
@@ -1650,14 +1663,37 @@ const mic = { stream: null, an: null, buf: null, prev: null, timer: 0, on: false
   offsets: [], onCount: null, onReset: null, onTempo: null, silenceMs: 1200,
   dbg: { bandRms: 0, flux: 0 } };
 
+/* Pide el micrófono prefiriendo SIEMPRE el del teléfono: con AirPods/BT el
+   sistema entrega el micrófono de los audífonos (baja calidad, pierde ataques
+   de guitarra); el audio de la app sigue saliendo por los AirPods igual. */
+async function getMicStream() {
+  const opts = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: opts });
+  } catch (e) { return null; }
+  try {
+    const bt = /airpod|bluetooth|hands-?free|headset|inal[áa]mbric|wireless/i;
+    const cur = (stream.getAudioTracks()[0] || {}).label || '';
+    if (bt.test(cur)) {
+      const ins = (await navigator.mediaDevices.enumerateDevices())
+        .filter(d => d.kind === 'audioinput' && d.label && !bt.test(d.label));
+      if (ins.length) {
+        const s2 = await navigator.mediaDevices.getUserMedia({
+          audio: Object.assign({ deviceId: { exact: ins[0].deviceId } }, opts)
+        });
+        stream.getTracks().forEach(t => t.stop());
+        stream = s2;
+      }
+    }
+  } catch (e) {}
+  return stream;
+}
 async function micStart() {
   if (mic.on) return true;
   audio();
-  try {
-    mic.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-    });
-  } catch (e) { return false; }
+  mic.stream = await getMicStream();
+  if (!mic.stream) return false;
   const src = ctx.createMediaStreamSource(mic.stream);
   mic.an = ctx.createAnalyser();
   mic.an.fftSize = 2048;
@@ -1742,9 +1778,8 @@ const rec = { mr: null, stream: null, timer: null };
 async function recToggle(btn) {
   if (rec.mr) { rec.mr.stop(); return; }
   if (!window.MediaRecorder) { alert('Este navegador no soporta grabación de audio.'); return; }
-  try {
-    rec.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch (e) { alert('Sin acceso al micrófono: autorízalo para poder grabarte.'); return; }
+  rec.stream = await getMicStream();
+  if (!rec.stream) { alert('Sin acceso al micrófono: autorízalo para poder grabarte.'); return; }
   const chunks = [];
   rec.mr = new MediaRecorder(rec.stream);
   rec.mr.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
@@ -1917,12 +1952,8 @@ async function chordCheck(name, out) {
   const c = CHORDS[name];
   if (!c) return;
   out.textContent = 'Pidiendo micrófono…';
-  let stream;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-    });
-  } catch (e) { out.textContent = 'Sin acceso al micrófono.'; return; }
+  const stream = await getMicStream();
+  if (!stream) { out.textContent = 'Sin acceso al micrófono.'; return; }
   audio();
   const src = ctx.createMediaStreamSource(stream);
   const an = ctx.createAnalyser();
