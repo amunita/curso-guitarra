@@ -1155,7 +1155,8 @@ function startSession(dayIdx) {
       <div class="mcinfo">
         <span class="mcstate">🎤 escuchando…</span>
         <span class="mctempo"></span>
-        <small>Cuenta cada golpe que oye · si paras de tocar ~1 s, vuelve a 0 · tócalo para reiniciar</small>
+        <small>Con ♩: +1 por compás tocado, 2 tiempos en silencio = 0 · Sin ♩: cuenta golpes · tócalo para reiniciar</small>
+        <label class="mcsens">Sensibilidad <input type="range" min="0" max="100" step="5"></label>
       </div>
     </div>
     <div class="sessbpm">
@@ -1191,6 +1192,9 @@ function startSession(dayIdx) {
   ov.querySelector('.sessrec').addEventListener('click', e => recToggle(e.target.closest('.sessrec')));
   const mcPanel = ov.querySelector('.miccount'), mcBig = ov.querySelector('.mcbig'),
     mcState = ov.querySelector('.mcstate'), mcTempo = ov.querySelector('.mctempo');
+  const mcSens = ov.querySelector('.mcsens input');
+  mcSens.value = mic.sens;
+  mcSens.addEventListener('input', () => { mic.sens = +mcSens.value; store('gc:mic', { sens: mic.sens }); });
   ov.querySelector('.sbmic').addEventListener('click', async e => {
     const b = e.target.closest('.sbmic');
     if (mic.on) { micStop(); b.classList.remove('on'); mcPanel.hidden = true; return; }
@@ -1652,11 +1656,12 @@ function renderRecs(day) {
     });
   });
 }
-/* ============== contador por micrófono (golpes + silencio) ==============
-   Cuenta cada ataque (rasgueo/nota) que oye el micrófono. Andrés juzga la
-   calidad: si para de tocar (~3 s de silencio), el contador vuelve a 0.
-   Con el metrónomo andando compara cada ataque con el clic más cercano y
-   dice si va al tempo.
+/* ============== contador por micrófono (compases / golpes) ==============
+   Dos modos. CON metrónomo (modo compás): +1 por cada compás en que se oyó
+   tocar — cuenta repeticiones del ejercicio, no golpes — y vuelve a 0 tras
+   2 tiempos sin sonido. SIN metrónomo (o en el récord de cambios): cuenta
+   cada ataque, y vuelve a 0 tras ~3 s de silencio. Con el metrónomo andando
+   además compara cada ataque con el clic más cercano y dice si va al tempo.
    Detección por FLUJO ESPECTRAL EN dB con envolvente por bin, en dos bandas:
    60–900 Hz (fundamentales) y 2400–6000 Hz (transiente de púa/uña, que es lo
    único que distingue un re-rasgueo del acorde que sigue sonando). Un bin solo
@@ -1667,10 +1672,12 @@ function renderRecs(day) {
    (1250/1800 Hz y sus armónicos 3750/5400, con notch). Calibrado con el banco
    offline de scratchpad/mic-harness2.js: 21/21 ataques, 0 falsos, con clics. */
 const mic = { stream: null, an: null, buf: null, env: null, timer: 0, on: false,
-  count: 0, floor: 0.003, floorDb: -75, fluxDbAvg: 0, lo: 3, hi: 38,
+  count: 0, floorDb: -75, fluxDbAvg: 0, lo: 3, hi: 38,
   lo2: 102, hi2: 256, notch: null, lastOnset: 0, lastSound: 0,
+  barMode: true, lastBarSeen: null,
   offsets: [], onCount: null, onReset: null, onTempo: null, silenceMs: 3000,
-  dbg: { bandRms: 0, flux: 0 } };
+  sens: 50, dbg: { bandRms: 0, flux: 0 } };
+mic.sens = load('gc:mic', { sens: 50 }).sens;
 
 /* Pide el micrófono prefiriendo SIEMPRE el del teléfono: con AirPods/BT el
    sistema entrega el micrófono de los audífonos (baja calidad, pierde ataques
@@ -1721,9 +1728,9 @@ async function micStart() {
     const f = i * binHz;
     if (Math.abs(f - 3750) < 160 || Math.abs(f - 5400) < 160) mic.notch[i] = 1;
   }
-  mic.on = true; mic.count = 0; mic.floor = 0.003; mic.floorDb = -75;
-  mic.fluxDbAvg = 0;
-  mic.lastOnset = 0; mic.lastSound = performance.now(); mic.offsets = [];
+  mic.on = true; mic.count = 0; mic.floorDb = -75;
+  mic.fluxDbAvg = 0; mic.barMode = true; mic.lastBarSeen = null;
+  mic.lastOnset = 0; mic.lastSound = 0; mic.offsets = [];
   mic.silenceMs = 3000;
   // setInterval y no rAF: en iOS rAF se congela con la pantalla atenuada o
   // durante gestos, y se perdían ataques
@@ -1755,26 +1762,54 @@ function micLoop() {
   const bandRms = Math.sqrt(e / n);
   mic.dbg.bandRms = bandRms; mic.dbg.flux = fluxDb;
   const now = performance.now();
-  // piso de ruido adaptativo, lineal (para floorDb) y en dB (para el detector)
-  if (bandRms < mic.floor) mic.floor = Math.max(0.0015, mic.floor * 0.995);
-  else if (bandRms < mic.floor * 2.5) mic.floor = mic.floor * 1.01;
-  if (bandRms < mic.floor * 2.5) mic.floorDb = mic.floorDb * 0.98 + meanDb * 0.02;
-  // "hay sonido" en dB: el RMS lineal no veía una nota suave de arpegio y el
-  // contador se reiniciaba por silencio aunque Andrés siguiera tocando
-  if (meanDb > mic.floorDb + 6) mic.lastSound = now;
+  // piso de ruido en dB, min-tracking: baja rápido, sube lentísimo (0,4 dB/s)
+  // y nunca sobre -55, para que tocar sostenido no lo arrastre hacia arriba
+  if (meanDb < mic.floorDb) mic.floorDb = Math.max(-95, mic.floorDb + (meanDb - mic.floorDb) * 0.05);
+  else mic.floorDb = Math.min(-55, mic.floorDb + 0.01);
+  // sensibilidad ajustable (slider del panel Contar, 0-100; 50 por defecto):
+  // gobierna el umbral de ataque y el margen de "hay sonido" sobre el piso,
+  // para que respirar o moverse cerca del teléfono no cuente como tocar
+  const thrOnset = 10 + (100 - mic.sens) * 0.4;   // sens 50 → 30
+  const presMrg = 4 + (100 - mic.sens) * 0.12;    // sens 50 → 10 dB
+  if (meanDb > mic.floorDb + presMrg) mic.lastSound = now;
   // ataque: flujo en dB sobre su promedio móvil, antirrebote 150 ms
-  if (fluxDb > Math.max(20, mic.fluxDbAvg * 2.5) && now - mic.lastOnset > 150) {
+  const onset = fluxDb > Math.max(thrOnset, mic.fluxDbAvg * 2.5) && now - mic.lastOnset > 150;
+  if (onset) {
     mic.lastOnset = now; mic.lastSound = now;
-    mic.count++;
     if (met.on) micTempoMark();
-    if (mic.onCount) mic.onCount(mic.count);
   }
   // promedio móvil del flujo, acotado para que un golpe fuerte no lo dispare
   mic.fluxDbAvg = mic.fluxDbAvg * 0.9 + Math.min(fluxDb, mic.fluxDbAvg * 3 + 10) * 0.1;
-  // silencio sostenido → contador a cero (Andrés paró porque no le salió)
-  if (mic.count > 0 && now - mic.lastSound > mic.silenceMs) {
-    mic.count = 0; mic.offsets = [];
-    if (mic.onReset) mic.onReset();
+  if (met.on && mic.barMode) {
+    // MODO COMPÁS (pedido 2026-09-02): con el metrónomo andando el contador
+    // avanza +1 por compás tocado (cuenta repeticiones del ejercicio, no
+    // golpes), y vuelve a 0 tras 2 tiempos de metrónomo sin sonido.
+    const beats = metBeats(), beatMs = 60000 / met.bpm;
+    const curBar = Math.floor(met.count / beats);
+    if (mic.lastBarSeen == null || curBar < mic.lastBarSeen) mic.lastBarSeen = curBar;
+    if (curBar > mic.lastBarSeen) {
+      mic.lastBarSeen = curBar;
+      // misma ventana que el reset: si ya lleva 2 tiempos callado, no cuenta
+      if (now - mic.lastSound < 2 * beatMs) {
+        mic.count++;
+        if (mic.onCount) mic.onCount(mic.count);
+      }
+    }
+    if (mic.count > 0 && now - mic.lastSound > 2 * beatMs) {
+      mic.count = 0; mic.offsets = [];
+      if (mic.onReset) mic.onReset();
+    }
+  } else {
+    // MODO LIBRE (sin metrónomo, o récord de cambios): cuenta cada ataque
+    if (onset) {
+      mic.count++;
+      if (mic.onCount) mic.onCount(mic.count);
+    }
+    // silencio sostenido → contador a cero (Andrés paró porque no le salió)
+    if (mic.count > 0 && now - mic.lastSound > mic.silenceMs) {
+      mic.count = 0; mic.offsets = [];
+      if (mic.onReset) mic.onReset();
+    }
   }
 }
 function micTempoMark() {
@@ -1889,6 +1924,7 @@ function openChanges() {
       const ok = await micStart();
       if (ok) {
         mic.silenceMs = 1e9; // acá no se reinicia por silencio: cuenta total del minuto
+        mic.barMode = false; // y cuenta GOLPES aunque el metrónomo esté andando
         mic.onCount = () => { if (t) { count++; showCount(); } };
       } else { $('.chmic').checked = false; }
     }

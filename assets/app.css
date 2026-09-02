@@ -175,6 +175,8 @@ body.insession{overflow:hidden}
 .miccount .mcstate{font-weight:800}
 .miccount .mctempo{color:#8fd4bf;font-weight:700}
 .miccount small{color:#9fb0a8;line-height:1.35}
+.miccount .mcsens{display:flex;align-items:center;gap:8px;color:#9fb0a8;font-size:12px;font-weight:700}
+.miccount .mcsens input{flex:1;max-width:150px;accent-color:#2fbf8f}
 .chgmic{display:block;margin:8px 0 2px;color:var(--muted);font-size:14px}
 .sessbpm button{width:56px;height:38px;border-radius:10px;border:1px solid #d5dcd7;background:white;
   font-size:16px;font-weight:800;color:var(--ink)}

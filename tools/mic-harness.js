@@ -70,10 +70,10 @@
     if (bandRms < cur.floor) cur.floor = Math.max(0.0015, cur.floor * 0.995);
     else if (bandRms < cur.floor * 2.5) cur.floor = cur.floor * 1.01;
     if (bandRms < cur.floor * 2.5) cur.floorDb = cur.floorDb * 0.98 + meanDb * 0.02;
-    if (fluxDb > Math.max(20, cur.fluxDbAvg * 2.5) && now - cur.last > 150) {
+    if (fluxDb > Math.max(30, cur.fluxDbAvg * 2.5) && now - cur.last > 150) {
       cur.last = now; evC.push(+now.toFixed(0)); }
     cur.fluxDbAvg = cur.fluxDbAvg * 0.9 + Math.min(fluxDb, cur.fluxDbAvg * 3 + 10) * 0.1;
-    (window.__snd = window.__snd || []).push([+now.toFixed(0), bandRms > Math.max(0.002, cur.floor*2.5) ? 1 : 0, meanDb > cur.floorDb + 6 ? 1 : 0]);
+    (window.__snd = window.__snd || []).push([+now.toFixed(0), 0, +(meanDb - cur.floorDb).toFixed(1)]);
     if (now > 10300 && now < 12000) dbgRows.push([+now.toFixed(0), +fluxDb.toFixed(1), +cur.fluxDbAvg.toFixed(1), +(cur.gate||0).toFixed(1)]);
   }
   const step = 0.025;
