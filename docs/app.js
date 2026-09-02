@@ -1685,6 +1685,7 @@ const mic = { stream: null, an: null, buf: null, env: null, timer: 0, on: false,
   lo2: 102, hi2: 256, notch: null, lastOnset: 0, lastSound: 0,
   barMode: true, lastBarSeen: null,
   offsets: [], onCount: null, onReset: null, onTempo: null, onLevel: null, silenceMs: 3000,
+  dead: 0, reacq: false,
   sens: 50, dbg: { bandRms: 0, flux: 0 } };
 mic.sens = load('gc:mic', { sens: 50 }).sens;
 
@@ -1740,7 +1741,8 @@ async function micStart() {
   mic.on = true; mic.count = 0; mic.floorDb = -75;
   mic.fluxDbAvg = 0; mic.barMode = true; mic.lastBarSeen = null;
   mic.lastOnset = 0; mic.lastSound = 0; mic.offsets = [];
-  mic.silenceMs = 3000;
+  mic.silenceMs = 3000; mic.dead = 0; mic.reacq = false;
+  micTrackWatch();
   // setInterval y no rAF: en iOS rAF se congela con la pantalla atenuada o
   // durante gestos, y se perdían ataques
   mic.timer = setInterval(micLoop, 25);
@@ -1752,9 +1754,36 @@ function micStop() {
   if (mic.stream) { mic.stream.getTracks().forEach(t => t.stop()); mic.stream = null; }
   mic.an = null; mic.onCount = mic.onReset = mic.onTempo = mic.onLevel = null;
 }
+// iOS corta el micrófono sin avisar (botón de volumen, llamada, Siri): el
+// contexto queda suspendido o el track muere. Recuperarse solo, sin apagar/prender.
+function micTrackWatch() {
+  const t = mic.stream && mic.stream.getAudioTracks()[0];
+  if (t) t.addEventListener('ended', () => micReacquire());
+}
+async function micReacquire() {
+  if (!mic.on || mic.reacq) return;
+  mic.reacq = true;
+  try {
+    if (mic.stream) mic.stream.getTracks().forEach(t => t.stop());
+    const s = await getMicStream();
+    if (s && mic.on) {
+      mic.stream = s;
+      ctx.createMediaStreamSource(s).connect(mic.an);
+      micTrackWatch();
+    }
+  } catch (e) {}
+  mic.reacq = false;
+}
 function micLoop() {
   if (!mic.on) return;
+  if (ctx.state !== 'running') { ctx.resume().catch(() => {}); return; }
   mic.an.getFloatFrequencyData(mic.buf);
+  if (mic.buf[mic.lo] === -Infinity) {
+    // ni ruido de fondo: track muerto → repedir el micrófono tras ~1 s
+    if (++mic.dead >= 40) { mic.dead = 0; micReacquire(); }
+    return;
+  }
+  mic.dead = 0;
   let e = 0, fluxDb = 0, meanDb = 0;
   for (let i = mic.lo; i <= mic.hi2; i++) {
     const inB1 = i <= mic.hi, inB2 = i >= mic.lo2 && !mic.notch[i];
