@@ -71,6 +71,10 @@ function nearestSample(midi) {
   return bd <= 6 ? best : null;
 }
 fetchSamples();
+// crear el contexto de inmediato (queda 'suspended' hasta el primer toque en iOS)
+// para que las muestras se decodifiquen al cargar: si no, la primera reproducción
+// partía antes de decodificar y sonaba con el sintetizador de respaldo
+audio();
 window.__gcaudio = () => ({ pendientes: Object.keys(sampleRaw).length, decodificadas: Object.keys(sampleBuf).length, ctx: !!ctx,
   mic: mic.on ? { bandRms: mic.dbg.bandRms, flux: mic.dbg.flux, fluxAvg: mic.fluxAvg, floor: mic.floor, count: mic.count } : null });
 
