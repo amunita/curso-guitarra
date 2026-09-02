@@ -318,7 +318,9 @@ const FINGERING = {
 const PC_LAT = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
 const PC_ANG = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 /* ajustes de la app (pantalla Ajustes) */
+const DRIVE_CLIENT_ID = '217925521670-a5gflmldhln729cbm8tkqaicqj0do138.apps.googleusercontent.com';
 const cfg = Object.assign({ notation: 'lat', driveClientId: '' }, load('gc:cfg', {}));
+if (!cfg.driveClientId) cfg.driveClientId = DRIVE_CLIENT_ID;
 function cfgSave() { store('gc:cfg', { notation: cfg.notation, driveClientId: cfg.driveClientId }); }
 function noteTxt(pc) { return (cfg.notation === 'ang' ? PC_ANG : PC_LAT)[pc]; }
 function decorateChordDiv(div) {
