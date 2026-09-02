@@ -1731,11 +1731,22 @@ function driveAuth() {
     tc.requestAccessToken({ prompt: driveTok ? '' : 'consent' });
   }));
 }
+async function driveErr(r) {
+  let why = '';
+  try {
+    const j = await r.json();
+    why = (j.error && (j.error.message || j.error.status)) || '';
+    if (/has not been used in project|is disabled/i.test(why)) {
+      why = 'la API de Google Drive no está habilitada en el proyecto (console.cloud.google.com → APIs → Google Drive API → Habilitar)';
+    }
+  } catch (e) {}
+  return new Error('Drive respondió ' + r.status + (why ? ': ' + why : ''));
+}
 async function driveFind(tok) {
   const q = encodeURIComponent(`name = '${DRIVE_FILE}' and trashed = false`);
   const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,modifiedTime)`,
     { headers: { Authorization: 'Bearer ' + tok } });
-  if (!r.ok) throw new Error('Drive respondió ' + r.status);
+  if (!r.ok) throw await driveErr(r);
   const j = await r.json();
   return (j.files && j.files[0]) || null;
 }
@@ -1755,7 +1766,7 @@ async function driveSave() {
     r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
       { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'multipart/related; boundary=' + bnd }, body: mp });
   }
-  if (!r.ok) throw new Error('Drive respondió ' + r.status);
+  if (!r.ok) throw await driveErr(r);
 }
 async function driveRestore() {
   const tok = await driveAuth();
@@ -1763,7 +1774,7 @@ async function driveRestore() {
   if (!f) throw new Error('Aún no hay respaldo en Drive: usa «Guardar en Drive» primero.');
   const r = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`,
     { headers: { Authorization: 'Bearer ' + tok } });
-  if (!r.ok) throw new Error('Drive respondió ' + r.status);
+  if (!r.ok) throw await driveErr(r);
   applyBackupObj(await r.json());
 }
 
