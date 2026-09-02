@@ -116,7 +116,9 @@ function pluck(midi, when, vel) {
   src.connect(g); g.connect(master);
   src.start(t);
   liveNodes.push(src);
-  if (liveNodes.length > 120) liveNodes = liveNodes.filter(n => { try { return n.context; } catch (e) { return false; } }).slice(-60);
+  // se saca solo al terminar: recortar la lista por tamaño dejaba notas futuras
+  // ya programadas sin referencia y "Detener" no podía pararlas
+  src.onended = () => { const i = liveNodes.indexOf(src); if (i >= 0) liveNodes.splice(i, 1); };
   return src;
 }
 
@@ -129,6 +131,7 @@ function click(when, accent) {
   o.connect(g); g.connect(master);
   o.start(when); o.stop(when + 0.07);
   liveNodes.push(o);
+  o.onended = () => { const i = liveNodes.indexOf(o); if (i >= 0) liveNodes.splice(i, 1); };
 }
 
 function stopAllSound() {
