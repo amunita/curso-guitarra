@@ -88,7 +88,7 @@ fetchSamples();
 // partía antes de decodificar y sonaba con el sintetizador de respaldo
 audio();
 window.__gcaudio = () => ({ pendientes: Object.keys(sampleRaw).length, decodificadas: Object.keys(sampleBuf).length, ctx: !!ctx,
-  mic: mic.on ? { bandRms: mic.dbg.bandRms, flux: mic.dbg.flux, fluxAvg: mic.fluxAvg, floor: mic.floor, count: mic.count } : null });
+  mic: mic.on ? { bandRms: mic.dbg.bandRms, fluxDb: mic.dbg.flux, fluxDbAvg: mic.fluxDbAvg, floorDb: mic.floorDb, count: mic.count } : null });
 
 // cuerda pulsada por Karplus-Strong, con ruido inicial suavizado (timbre nylon)
 function pluckBuf(midi) {
@@ -140,9 +140,12 @@ function pluck(midi, when, vel) {
 
 function click(when, accent) {
   const o = ctx.createOscillator(), g = ctx.createGain();
-  o.type = 'square';
+  // triangular + rampa de 2 ms: la cuadrada con arranque instantáneo era un
+  // impulso de banda ancha y el contador por micrófono la contaba como ataque
+  o.type = 'triangle';
   o.frequency.value = accent ? 1800 : 1250;
-  g.gain.setValueAtTime(accent ? 0.4 : 0.25, when);
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.linearRampToValueAtTime(accent ? 0.5 : 0.32, when + 0.002);
   g.gain.exponentialRampToValueAtTime(0.001, when + 0.05);
   o.connect(g); g.connect(master);
   o.start(when); o.stop(when + 0.07);
@@ -1654,12 +1657,18 @@ function renderRecs(day) {
    calidad: si para de tocar (~3 s de silencio), el contador vuelve a 0.
    Con el metrónomo andando compara cada ataque con el clic más cercano y
    dice si va al tempo.
-   Detección por FLUJO ESPECTRAL en la banda 60–1000 Hz: un ataque nuevo
-   cambia el espectro aunque el acorde anterior siga sonando (el salto de
-   RMS no lo ve, porque la energía total casi no sube). La banda termina
-   bajo el clic del metrónomo (1250/1800 Hz), así que el clic no cuenta. */
-const mic = { stream: null, an: null, buf: null, prev: null, timer: 0, on: false,
-  count: 0, floor: 0.003, fluxAvg: 0, lo: 3, hi: 42, lastOnset: 0, lastSound: 0,
+   Detección por FLUJO ESPECTRAL EN dB con envolvente por bin, en dos bandas:
+   60–900 Hz (fundamentales) y 2400–6000 Hz (transiente de púa/uña, que es lo
+   único que distingue un re-rasgueo del acorde que sigue sonando). Un bin solo
+   aporta si supera su propio pico reciente (envolvente que decae 1,5 dB por
+   frame): el ring-out nunca lo hace, así que no dispara falsos. Trabajar en dB
+   hace al detector independiente del volumen: la nota suelta de un arpegio
+   suave cuenta igual que un rasgueo. Las bandas esquivan el clic del metrónomo
+   (1250/1800 Hz y sus armónicos 3750/5400, con notch). Calibrado con el banco
+   offline de scratchpad/mic-harness2.js: 21/21 ataques, 0 falsos, con clics. */
+const mic = { stream: null, an: null, buf: null, env: null, timer: 0, on: false,
+  count: 0, floor: 0.003, floorDb: -75, fluxDbAvg: 0, lo: 3, hi: 38,
+  lo2: 102, hi2: 256, notch: null, lastOnset: 0, lastSound: 0,
   offsets: [], onCount: null, onReset: null, onTempo: null, silenceMs: 3000,
   dbg: { bandRms: 0, flux: 0 } };
 
@@ -1701,10 +1710,19 @@ async function micStart() {
   src.connect(mic.an);
   const binHz = ctx.sampleRate / mic.an.fftSize;
   mic.lo = Math.max(1, Math.round(60 / binHz));
-  mic.hi = Math.min(mic.an.frequencyBinCount - 1, Math.round(1000 / binHz));
+  mic.hi = Math.min(mic.an.frequencyBinCount - 1, Math.round(900 / binHz));
+  mic.lo2 = Math.round(2400 / binHz);
+  mic.hi2 = Math.min(mic.an.frequencyBinCount - 1, Math.round(6000 / binHz));
   mic.buf = new Float32Array(mic.an.frequencyBinCount);
-  mic.prev = new Float32Array(mic.hi + 1);
-  mic.on = true; mic.count = 0; mic.floor = 0.003; mic.fluxAvg = 0;
+  mic.env = new Float32Array(mic.hi2 + 1).fill(-100);
+  // notch: armónicos del clic del metrónomo (3×1250=3750, 3×1800=5400)
+  mic.notch = new Uint8Array(mic.hi2 + 1);
+  for (let i = mic.lo2; i <= mic.hi2; i++) {
+    const f = i * binHz;
+    if (Math.abs(f - 3750) < 160 || Math.abs(f - 5400) < 160) mic.notch[i] = 1;
+  }
+  mic.on = true; mic.count = 0; mic.floor = 0.003; mic.floorDb = -75;
+  mic.fluxDbAvg = 0;
   mic.lastOnset = 0; mic.lastSound = performance.now(); mic.offsets = [];
   mic.silenceMs = 3000;
   // setInterval y no rAF: en iOS rAF se congela con la pantalla atenuada o
@@ -1721,36 +1739,38 @@ function micStop() {
 function micLoop() {
   if (!mic.on) return;
   mic.an.getFloatFrequencyData(mic.buf);
-  let flux = 0, e = 0;
-  for (let i = mic.lo; i <= mic.hi; i++) {
-    const lin = Math.pow(10, mic.buf[i] / 20); // dB → amplitud lineal
-    const d = lin - mic.prev[i];
-    if (d > 0) flux += d;
-    e += lin * lin;
-    mic.prev[i] = lin;
+  let e = 0, fluxDb = 0, meanDb = 0;
+  for (let i = mic.lo; i <= mic.hi2; i++) {
+    const inB1 = i <= mic.hi, inB2 = i >= mic.lo2 && !mic.notch[i];
+    if (!inB1 && !inB2) continue;
+    const db = Math.max(mic.buf[i], -100);
+    if (inB1) { const lin = Math.pow(10, db / 20); e += lin * lin; meanDb += db; }
+    // un bin aporta solo si supera su pico reciente en 5+ dB y está sobre el ruido
+    const rise = db - (mic.env[i] + 2);
+    if (rise > 3 && db > mic.floorDb + 12) fluxDb += rise;
+    mic.env[i] = Math.max(mic.env[i] - 1.5, db);
   }
   const n = mic.hi - mic.lo + 1;
-  flux /= n;
+  meanDb /= n;
   const bandRms = Math.sqrt(e / n);
-  mic.dbg.bandRms = bandRms; mic.dbg.flux = flux;
+  mic.dbg.bandRms = bandRms; mic.dbg.flux = fluxDb;
   const now = performance.now();
-  // piso de ruido adaptativo (baja rápido, sube lento)
+  // piso de ruido adaptativo, lineal (para floorDb) y en dB (para el detector)
   if (bandRms < mic.floor) mic.floor = Math.max(0.0015, mic.floor * 0.995);
   else if (bandRms < mic.floor * 2.5) mic.floor = mic.floor * 1.01;
-  // umbral bajo: una nota sola de arpegio suena mucho más débil que un
-  // rasgueo de seis cuerdas y también tiene que contar
-  const soundTh = Math.max(0.002, mic.floor * 2.5);
-  if (bandRms > soundTh) mic.lastSound = now;
-  // ataque: flujo espectral sobre su promedio móvil, antirrebote 100 ms
-  if (flux > Math.max(0.001, mic.fluxAvg * 1.8) && bandRms > soundTh &&
-      now - mic.lastOnset > 100) {
-    mic.lastOnset = now;
+  if (bandRms < mic.floor * 2.5) mic.floorDb = mic.floorDb * 0.98 + meanDb * 0.02;
+  // "hay sonido" en dB: el RMS lineal no veía una nota suave de arpegio y el
+  // contador se reiniciaba por silencio aunque Andrés siguiera tocando
+  if (meanDb > mic.floorDb + 6) mic.lastSound = now;
+  // ataque: flujo en dB sobre su promedio móvil, antirrebote 150 ms
+  if (fluxDb > Math.max(20, mic.fluxDbAvg * 2.5) && now - mic.lastOnset > 150) {
+    mic.lastOnset = now; mic.lastSound = now;
     mic.count++;
     if (met.on) micTempoMark();
     if (mic.onCount) mic.onCount(mic.count);
   }
   // promedio móvil del flujo, acotado para que un golpe fuerte no lo dispare
-  mic.fluxAvg = mic.fluxAvg * 0.92 + Math.min(flux, mic.fluxAvg * 3 + 0.001) * 0.08;
+  mic.fluxDbAvg = mic.fluxDbAvg * 0.9 + Math.min(fluxDb, mic.fluxDbAvg * 3 + 10) * 0.1;
   // silencio sostenido → contador a cero (Andrés paró porque no le salió)
   if (mic.count > 0 && now - mic.lastSound > mic.silenceMs) {
     mic.count = 0; mic.offsets = [];
