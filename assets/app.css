@@ -180,6 +180,9 @@ body.insession{overflow:hidden}
 .miccount .mclevel{position:relative;height:10px;max-width:290px;border-radius:5px;background:#0e1620;overflow:hidden;margin-top:4px}
 .miccount .mclevel .lvl{position:absolute;left:0;top:0;bottom:0;width:0;background:#4a5c6e;transition:width .06s linear}
 .miccount .mclevel .lvl.hot{background:#2fbf8f}
+.miccount .mclevel .lvl.arm{background:#d9a53f}
+.miccount .mcdur{margin-top:2px}
+.miccount .mcms{min-width:48px;text-align:right;color:#8fd4bf}
 .miccount .mclevel .thr{position:absolute;top:-2px;bottom:-2px;width:3px;background:#ffcf5e;border-radius:2px}
 .chgmic{display:block;margin:8px 0 2px;color:var(--muted);font-size:14px}
 .sessbpm button{width:56px;height:38px;border-radius:10px;border:1px solid #d5dcd7;background:white;

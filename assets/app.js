@@ -222,6 +222,59 @@ function baseChordName(name) {
   return m ? m[1] + (m[2] || '') : '';
 }
 
+/* Acordes extra de la Referencia (pedido 2026-09-02): mayores, menores, 7ª,
+   maj7, m7, novenas y sus. frets de 6ª a 1ª; -1 = muteada, 0 = al aire.
+   Se dibujan con el mismo formato SVG de los diagramas del curso, así
+   parseChordDiv y decorateChordDiv los entienden igual. */
+const EXTRA_CHORDS = {
+  'A': [-1, 0, 2, 2, 2, 0], 'Bb': [-1, 1, 3, 3, 3, 1], 'B': [-1, 2, 4, 4, 4, 2],
+  'C#': [-1, 4, 6, 6, 6, 4], 'Eb': [-1, 6, 8, 8, 8, 6], 'E': [0, 2, 2, 1, 0, 0],
+  'F#': [2, 4, 4, 3, 2, 2], 'Ab': [4, 6, 6, 5, 4, 4],
+  'Bbm': [-1, 1, 3, 3, 2, 1], 'Cm': [-1, 3, 5, 5, 4, 3], 'C#m': [-1, 4, 6, 6, 5, 4],
+  'Dm': [-1, -1, 0, 2, 3, 1], 'Ebm': [-1, 6, 8, 8, 7, 6], 'Fm': [1, 3, 3, 1, 1, 1],
+  'F#m': [2, 4, 4, 2, 2, 2], 'Gm': [3, 5, 5, 3, 3, 3], 'G#m': [4, 6, 6, 4, 4, 4],
+  'A7': [-1, 0, 2, 0, 2, 0], 'B7': [-1, 2, 1, 2, 0, 2], 'C7': [-1, 3, 2, 3, 1, 0],
+  'D7': [-1, -1, 0, 2, 1, 2], 'E7': [0, 2, 0, 1, 0, 0], 'F7': [1, 3, 1, 2, 1, 1],
+  'G7': [3, 2, 0, 0, 0, 1],
+  'Amaj7': [-1, 0, 2, 1, 2, 0], 'Cmaj7': [-1, 3, 2, 0, 0, 0], 'Dmaj7': [-1, -1, 0, 2, 2, 2],
+  'Emaj7': [0, 2, 1, 1, 0, 0], 'Fmaj7': [-1, -1, 3, 2, 1, 0], 'Gmaj7': [3, 2, 0, 0, 0, 2],
+  'Am7': [-1, 0, 2, 0, 1, 0], 'Bm7': [-1, 2, 4, 2, 3, 2], 'Cm7': [-1, 3, 5, 3, 4, 3],
+  'Dm7': [-1, -1, 0, 2, 1, 1], 'Em7': [0, 2, 2, 0, 3, 0], 'F#m7': [2, 4, 2, 2, 2, 2],
+  'Gm7': [3, 5, 3, 3, 3, 3],
+  'Cadd9': [-1, 3, 2, 0, 3, 0], 'Gadd9': [3, 2, 0, 2, 0, 3], 'Aadd9': [-1, 0, 2, 4, 2, 0],
+  'E9': [0, 2, 0, 1, 0, 2], 'A9': [-1, 0, 2, 4, 2, 3],
+  'Dsus2': [-1, -1, 0, 2, 3, 0], 'Dsus4': [-1, -1, 0, 2, 3, 3],
+  'Asus2': [-1, 0, 2, 2, 0, 0], 'Asus4': [-1, 0, 2, 2, 3, 0], 'Esus4': [0, 2, 2, 2, 0, 0]
+};
+function chordSvgHtml(name, frets) {
+  const fr = frets.filter(f => f > 0);
+  const maxF = fr.length ? Math.max.apply(null, fr) : 0;
+  const base = maxF > 5 ? Math.min.apply(null, fr) : 1;
+  const cy = f => 30 + 20 * (f - base + 1);
+  let s = '';
+  STR_X.forEach(x => { s += `<line x1="${x}" y1="40" x2="${x}" y2="140" class="string"/>`; });
+  for (let r = 0; r <= 5; r++) s += `<line x1="28" y1="${40 + 20 * r}" x2="138" y2="${40 + 20 * r}" class="fret ${r === 0 && base === 1 ? 'nut' : ''}"/>`;
+  // cejilla: 2+ cuerdas en el traste mínimo abarcando 4+, sin cuerdas al aire en medio
+  let barreF = 0, b1 = -1, b2 = -1;
+  if (fr.length) {
+    const minF = Math.min.apply(null, fr);
+    const idx = frets.map((f, i) => f === minF ? i : -1).filter(i => i >= 0);
+    if (idx.length >= 2) {
+      const a = idx[0], b = idx[idx.length - 1];
+      if (b - a >= 3 && frets.slice(a, b + 1).every(f => f >= minF)) { barreF = minF; b1 = a; b2 = b; }
+    }
+  }
+  if (barreF) s += `<line x1="${STR_X[b1]}" y1="${cy(barreF)}" x2="${STR_X[b2]}" y2="${cy(barreF)}" class="barre"/>`;
+  if (base > 1) s += `<text x="3" y="${cy(base) + 4}" class="tiny">${base}fr</text>`;
+  frets.forEach((f, i) => {
+    const x = STR_X[i];
+    if (f < 0) s += `<text x="${x - 4}" y="28" class="mark">×</text>`;
+    else if (f === 0) s += `<circle cx="${x}" cy="25" r="5.5" class="open"/>`;
+    else if (!(barreF && f === barreF && i > b1 && i < b2)) s += `<circle cx="${x}" cy="${cy(f)}" r="6.5" class="dot"/>`;
+  });
+  return `<b>${name}</b><svg viewBox="0 0 165 155">${s}</svg>`;
+}
+
 /* Digitación estándar por acorde: {nº de cuerda: dedo} (1=índice … 4=meñique, T=pulgar).
    Aprobado por Andrés (VB 2026-08-30) como mejora gráfica de los diagramas. */
 const FINGERING = {
@@ -236,7 +289,31 @@ const FINGERING = {
   'Em':   { 5: '2', 4: '3' },
   'F':    { 6: '1', 5: '3', 4: '4', 3: '2', 2: '1', 1: '1' },
   'G':    { 6: '3', 5: '2', 1: '4' },
-  'G/B':  { 5: '2', 1: '3' }
+  'G/B':  { 5: '2', 1: '3' },
+  'A7':   { 4: '2', 2: '3' },
+  'B7':   { 5: '2', 4: '1', 3: '3', 1: '4' },
+  'C7':   { 5: '3', 4: '2', 3: '4', 2: '1' },
+  'D7':   { 3: '2', 2: '1', 1: '3' },
+  'E7':   { 5: '2', 3: '1' },
+  'G7':   { 6: '3', 5: '2', 1: '1' },
+  'Amaj7': { 4: '2', 3: '1', 2: '3' },
+  'Cmaj7': { 5: '3', 4: '2' },
+  'Dmaj7': { 3: '1', 2: '1', 1: '1' },
+  'Emaj7': { 5: '3', 4: '1', 3: '2' },
+  'Fmaj7': { 4: '3', 3: '2', 2: '1' },
+  'Gmaj7': { 6: '2', 5: '1', 1: '3' },
+  'Am7':  { 4: '2', 2: '1' },
+  'Dm7':  { 3: '2', 2: '1', 1: '1' },
+  'Em7':  { 5: '2', 4: '3', 2: '4' },
+  'Cadd9': { 5: '3', 4: '2', 2: '4' },
+  'Gadd9': { 6: '3', 5: '2', 3: '1', 1: '4' },
+  'Aadd9': { 4: '1', 3: '3', 2: '2' },
+  'E9':   { 5: '2', 3: '1', 1: '3' },
+  'Dsus2': { 3: '1', 2: '3' },
+  'Dsus4': { 3: '1', 2: '3', 1: '4' },
+  'Asus2': { 4: '1', 3: '2' },
+  'Asus4': { 4: '1', 3: '2', 2: '3' },
+  'Esus4': { 5: '2', 4: '3', 3: '4' }
 };
 const PC_LAT = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
 function decorateChordDiv(div) {
@@ -1008,8 +1085,8 @@ function buildRefView() {
   view.className = 'view';
   view.innerHTML = `<div class="eyebrow">Referencia</div><h2>Acordes y notas</h2>
     <div class="refblock" style="border:none;margin-top:6px;padding-top:0">
-      <h3>Acordes del curso</h3>
-      <p class="legend">Toca un diagrama para oírlo. Busca por nombre (C, Am, F…) o en latino (do, sol…).</p>
+      <h3>Acordes</h3>
+      <p class="legend">Toca un diagrama para oírlo. Busca por nombre (C, Am7, F, Dsus4…) o en latino (do, sol…).</p>
       <input class="refsearch" id="chsearch" type="search" placeholder="Buscar acorde…">
       <div class="refchords" id="chgrid"></div>
     </div>
@@ -1124,7 +1201,14 @@ async function sessionWakeLock() {
   try { session.wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 }
 document.addEventListener('visibilitychange', () => {
-  if (session.open && document.visibilityState === 'visible') sessionWakeLock();
+  if (document.visibilityState === 'visible') {
+    if (session.open) sessionWakeLock();
+    return;
+  }
+  // app al fondo: silencio total (demos y metrónomo) y NADA vuelve solo al
+  // regresar — Andrés reactiva lo que quiera (pedido 2026-09-02)
+  stopPlayback();
+  if (met.on) { metStop(); try { metUI(); } catch (e) {} sessionMetUI(); }
 });
 
 function startSession(dayIdx) {
@@ -1156,8 +1240,9 @@ function startSession(dayIdx) {
         <span class="mcstate">🎤 escuchando…</span>
         <span class="mctempo"></span>
         <small>Con ♩: +1 por compás tocado, 2 tiempos en silencio = 0 · Sin ♩: cuenta golpes · tócalo para reiniciar</small>
-    <small>La barra muestra lo que oye el mic: cuenta cuando pasa la marca amarilla (se pone verde)</small>
+    <small>La barra es lo que oye el mic: cuenta si pasa la marca amarilla (verde = contando) · Duración mín.: cuánto debe sostenerse sobre la marca para contar — una cuerda dura, un golpe no</small>
         <label class="mcsens"><span>Sensibilidad</span><input type="range" min="0" max="100" step="5"></label>
+        <label class="mcsens mcdur"><span>Duración mín.</span><input type="range" min="0" max="600" step="25"><b class="mcms"></b></label>
         <div class="mclevel" title="Nivel que oye el micrófono; la marca es el umbral"><i class="lvl"></i><b class="thr"></b></div>
       </div>
     </div>
@@ -1194,12 +1279,17 @@ function startSession(dayIdx) {
   ov.querySelector('.sessrec').addEventListener('click', e => recToggle(e.target.closest('.sessrec')));
   const mcPanel = ov.querySelector('.miccount'), mcBig = ov.querySelector('.mcbig'),
     mcState = ov.querySelector('.mcstate'), mcTempo = ov.querySelector('.mctempo');
-  const mcSens = ov.querySelector('.mcsens input'),
+  const mcSens = ov.querySelector('.mcsens input'), mcDur = ov.querySelector('.mcdur input'),
+    mcMs = ov.querySelector('.mcms'),
     mcLvl = ov.querySelector('.mclevel .lvl'), mcThr = ov.querySelector('.mclevel .thr');
   // marca del umbral en el medidor (escala 0-40 dB sobre el piso de ruido)
   const mcThrPos = () => { mcThr.style.left = Math.min(100, (2 + (100 - mic.sens) * 0.2) / 40 * 100) + '%'; };
+  const mcSave = () => store('gc:mic', { sens: mic.sens, minMs: mic.minMs });
+  const mcMsTxt = () => { mcMs.textContent = mic.minMs ? mic.minMs + ' ms' : 'off'; };
   mcSens.value = mic.sens; mcThrPos();
-  mcSens.addEventListener('input', () => { mic.sens = +mcSens.value; store('gc:mic', { sens: mic.sens }); mcThrPos(); });
+  mcDur.value = mic.minMs; mcMsTxt();
+  mcSens.addEventListener('input', () => { mic.sens = +mcSens.value; mcSave(); mcThrPos(); });
+  mcDur.addEventListener('input', () => { mic.minMs = +mcDur.value; mcSave(); mcMsTxt(); });
   ov.querySelector('.sbmic').addEventListener('click', async e => {
     const b = e.target.closest('.sbmic');
     if (mic.on) { micStop(); b.classList.remove('on'); mcPanel.hidden = true; return; }
@@ -1218,9 +1308,10 @@ function startSession(dayIdx) {
       mcBig.classList.add('zeroed'); setTimeout(() => mcBig.classList.remove('zeroed'), 600);
     };
     mic.onTempo = (v, pct) => { mcTempo.textContent = v + ' · ' + pct + '% en el clic'; };
-    mic.onLevel = (lvl, mrg, act) => {
+    mic.onLevel = (lvl, mrg, act, present) => {
       mcLvl.style.width = Math.max(0, Math.min(100, lvl / 40 * 100)) + '%';
       mcLvl.classList.toggle('hot', act);
+      mcLvl.classList.toggle('arm', !act && present);
     };
   });
   mcBig.addEventListener('click', () => { mic.count = 0; mic.offsets = []; mcBig.textContent = '0'; mcTempo.textContent = ''; });
@@ -1685,9 +1776,12 @@ const mic = { stream: null, an: null, buf: null, env: null, timer: 0, on: false,
   lo2: 102, hi2: 256, notch: null, lastOnset: 0, lastSound: 0,
   barMode: true, lastBarSeen: null,
   offsets: [], onCount: null, onReset: null, onTempo: null, onLevel: null, silenceMs: 3000,
-  dead: 0, reacq: false,
+  dead: 0, reacq: false, aboveSince: 0, wasPresent: false, pendOnset: 0, minMs: 0,
   sens: 50, dbg: { bandRms: 0, flux: 0 } };
-mic.sens = load('gc:mic', { sens: 50 }).sens;
+{
+  const st = load('gc:mic', { sens: 50, minMs: 0 });
+  mic.sens = st.sens; mic.minMs = st.minMs || 0;
+}
 
 /* Pide el micrófono prefiriendo SIEMPRE el del teléfono: con AirPods/BT el
    sistema entrega el micrófono de los audífonos (baja calidad, pierde ataques
@@ -1742,6 +1836,7 @@ async function micStart() {
   mic.fluxDbAvg = 0; mic.barMode = true; mic.lastBarSeen = null;
   mic.lastOnset = 0; mic.lastSound = 0; mic.offsets = [];
   mic.silenceMs = 3000; mic.dead = 0; mic.reacq = false;
+  mic.aboveSince = 0; mic.wasPresent = false; mic.pendOnset = 0;
   micTrackWatch();
   // setInterval y no rAF: en iOS rAF se congela con la pantalla atenuada o
   // durante gestos, y se perdían ataques
@@ -1809,15 +1904,21 @@ function micLoop() {
   // para que respirar o moverse cerca del teléfono no cuente como tocar
   const thrOnset = 5 + (100 - mic.sens) * 0.5;    // sens 100→5 · 50→30 · 0→55
   const presMrg = 2 + (100 - mic.sens) * 0.2;     // sens 100→2 · 50→12 · 0→22 dB
-  // el umbral del medidor manda: nada cuenta si el nivel no pasa la marca
+  // el umbral del medidor manda: nada cuenta si el nivel no pasa la marca.
+  // Y con minMs > 0, además debe MANTENERSE sobre la marca ese tiempo seguido:
+  // una cuerda sigue sonando, un portazo o golpe se apaga al tiro
   const present = meanDb > mic.floorDb + presMrg;
-  if (present) mic.lastSound = now;
-  if (mic.onLevel) mic.onLevel(meanDb - mic.floorDb, presMrg, now - mic.lastSound < 200);
+  if (present && !mic.wasPresent) mic.aboveSince = now;
+  mic.wasPresent = present;
+  if (!present) mic.pendOnset = 0;
+  const sustained = present && now - mic.aboveSince >= mic.minMs;
+  if (sustained) mic.lastSound = now;
+  if (mic.onLevel) mic.onLevel(meanDb - mic.floorDb, presMrg, now - mic.lastSound < 200, present);
   // ataque: flujo en dB sobre su promedio móvil, antirrebote 150 ms,
   // y solo si el nivel superó el umbral (si no, un roce suave contaba igual)
   const onset = present && fluxDb > Math.max(thrOnset, mic.fluxDbAvg * 2.5) && now - mic.lastOnset > 150;
   if (onset) {
-    mic.lastOnset = now;
+    mic.lastOnset = now; mic.pendOnset = now;
     if (met.on) micTempoMark();
   }
   // promedio móvil del flujo, acotado para que un golpe fuerte no lo dispare
@@ -1842,8 +1943,10 @@ function micLoop() {
       if (mic.onReset) mic.onReset();
     }
   } else {
-    // MODO LIBRE (sin metrónomo, o récord de cambios): cuenta cada ataque
-    if (onset) {
+    // MODO LIBRE (sin metrónomo, o récord de cambios): cuenta cada ataque,
+    // confirmado recién cuando el sonido duró minMs sobre el umbral
+    if (mic.pendOnset && present && now - mic.pendOnset >= mic.minMs) {
+      mic.pendOnset = 0;
       mic.count++;
       if (mic.onCount) mic.onCount(mic.count);
     }
@@ -2204,6 +2307,10 @@ function buildChordDict() {
       const c = parseChordDiv(div);
       if (c && c.name && !CHORDS[c.name]) CHORDS[c.name] = { frets: c.frets, sample: div.innerHTML };
     } catch (e) { window.__gcerr.push('chord: ' + e.message); }
+  });
+  // los del curso mandan; los extra rellenan el resto de la Referencia
+  Object.keys(EXTRA_CHORDS).forEach(name => {
+    if (!CHORDS[name]) CHORDS[name] = { frets: EXTRA_CHORDS[name], sample: chordSvgHtml(name, EXTRA_CHORDS[name]) };
   });
 }
 function wireChordTaps() {
