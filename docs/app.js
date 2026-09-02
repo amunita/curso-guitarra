@@ -1780,12 +1780,15 @@ function micLoop() {
   // para que respirar o moverse cerca del teléfono no cuente como tocar
   const thrOnset = 5 + (100 - mic.sens) * 0.5;    // sens 100→5 · 50→30 · 0→55
   const presMrg = 2 + (100 - mic.sens) * 0.2;     // sens 100→2 · 50→12 · 0→22 dB
-  if (meanDb > mic.floorDb + presMrg) mic.lastSound = now;
+  // el umbral del medidor manda: nada cuenta si el nivel no pasa la marca
+  const present = meanDb > mic.floorDb + presMrg;
+  if (present) mic.lastSound = now;
   if (mic.onLevel) mic.onLevel(meanDb - mic.floorDb, presMrg, now - mic.lastSound < 200);
-  // ataque: flujo en dB sobre su promedio móvil, antirrebote 150 ms
-  const onset = fluxDb > Math.max(thrOnset, mic.fluxDbAvg * 2.5) && now - mic.lastOnset > 150;
+  // ataque: flujo en dB sobre su promedio móvil, antirrebote 150 ms,
+  // y solo si el nivel superó el umbral (si no, un roce suave contaba igual)
+  const onset = present && fluxDb > Math.max(thrOnset, mic.fluxDbAvg * 2.5) && now - mic.lastOnset > 150;
   if (onset) {
-    mic.lastOnset = now; mic.lastSound = now;
+    mic.lastOnset = now;
     if (met.on) micTempoMark();
   }
   // promedio móvil del flujo, acotado para que un golpe fuerte no lo dispare
