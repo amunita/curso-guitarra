@@ -1651,7 +1651,7 @@ function renderRecs(day) {
 }
 /* ============== contador por micrófono (golpes + silencio) ==============
    Cuenta cada ataque (rasgueo/nota) que oye el micrófono. Andrés juzga la
-   calidad: si para de tocar (~1,2 s de silencio), el contador vuelve a 0.
+   calidad: si para de tocar (~3 s de silencio), el contador vuelve a 0.
    Con el metrónomo andando compara cada ataque con el clic más cercano y
    dice si va al tempo.
    Detección por FLUJO ESPECTRAL en la banda 60–1000 Hz: un ataque nuevo
@@ -1660,7 +1660,7 @@ function renderRecs(day) {
    bajo el clic del metrónomo (1250/1800 Hz), así que el clic no cuenta. */
 const mic = { stream: null, an: null, buf: null, prev: null, timer: 0, on: false,
   count: 0, floor: 0.003, fluxAvg: 0, lo: 3, hi: 42, lastOnset: 0, lastSound: 0,
-  offsets: [], onCount: null, onReset: null, onTempo: null, silenceMs: 1200,
+  offsets: [], onCount: null, onReset: null, onTempo: null, silenceMs: 3000,
   dbg: { bandRms: 0, flux: 0 } };
 
 /* Pide el micrófono prefiriendo SIEMPRE el del teléfono: con AirPods/BT el
@@ -1706,7 +1706,7 @@ async function micStart() {
   mic.prev = new Float32Array(mic.hi + 1);
   mic.on = true; mic.count = 0; mic.floor = 0.003; mic.fluxAvg = 0;
   mic.lastOnset = 0; mic.lastSound = performance.now(); mic.offsets = [];
-  mic.silenceMs = 1200;
+  mic.silenceMs = 3000;
   // setInterval y no rAF: en iOS rAF se congela con la pantalla atenuada o
   // durante gestos, y se perdían ataques
   mic.timer = setInterval(micLoop, 25);
@@ -1737,18 +1737,20 @@ function micLoop() {
   // piso de ruido adaptativo (baja rápido, sube lento)
   if (bandRms < mic.floor) mic.floor = Math.max(0.0015, mic.floor * 0.995);
   else if (bandRms < mic.floor * 2.5) mic.floor = mic.floor * 1.01;
-  const soundTh = Math.max(0.005, mic.floor * 3);
+  // umbral bajo: una nota sola de arpegio suena mucho más débil que un
+  // rasgueo de seis cuerdas y también tiene que contar
+  const soundTh = Math.max(0.002, mic.floor * 2.5);
   if (bandRms > soundTh) mic.lastSound = now;
-  // ataque: flujo espectral sobre su promedio móvil, antirrebote 120 ms
-  if (flux > Math.max(0.0025, mic.fluxAvg * 2.2) && bandRms > soundTh &&
-      now - mic.lastOnset > 120) {
+  // ataque: flujo espectral sobre su promedio móvil, antirrebote 100 ms
+  if (flux > Math.max(0.001, mic.fluxAvg * 1.8) && bandRms > soundTh &&
+      now - mic.lastOnset > 100) {
     mic.lastOnset = now;
     mic.count++;
     if (met.on) micTempoMark();
     if (mic.onCount) mic.onCount(mic.count);
   }
   // promedio móvil del flujo, acotado para que un golpe fuerte no lo dispare
-  mic.fluxAvg = mic.fluxAvg * 0.92 + Math.min(flux, mic.fluxAvg * 3 + 0.0025) * 0.08;
+  mic.fluxAvg = mic.fluxAvg * 0.92 + Math.min(flux, mic.fluxAvg * 3 + 0.001) * 0.08;
   // silencio sostenido → contador a cero (Andrés paró porque no le salió)
   if (mic.count > 0 && now - mic.lastSound > mic.silenceMs) {
     mic.count = 0; mic.offsets = [];
