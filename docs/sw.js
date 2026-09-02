@@ -1,5 +1,5 @@
 /* Service worker: la app completa funciona offline (cache-first). */
-const VERSION = 'b9f7872c5c';
+const VERSION = 'dc8a637af7';
 const CACHE = 'guitarra-' + VERSION;
 const ASSETS = [
   './',

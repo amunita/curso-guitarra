@@ -1156,7 +1156,9 @@ function startSession(dayIdx) {
         <span class="mcstate">🎤 escuchando…</span>
         <span class="mctempo"></span>
         <small>Con ♩: +1 por compás tocado, 2 tiempos en silencio = 0 · Sin ♩: cuenta golpes · tócalo para reiniciar</small>
-        <label class="mcsens">Sensibilidad <input type="range" min="0" max="100" step="5"></label>
+    <small>La barra muestra lo que oye el mic: cuenta cuando pasa la marca amarilla (se pone verde)</small>
+        <label class="mcsens"><span>Sensibilidad</span><input type="range" min="0" max="100" step="5"></label>
+        <div class="mclevel" title="Nivel que oye el micrófono; la marca es el umbral"><i class="lvl"></i><b class="thr"></b></div>
       </div>
     </div>
     <div class="sessbpm">
@@ -1192,9 +1194,12 @@ function startSession(dayIdx) {
   ov.querySelector('.sessrec').addEventListener('click', e => recToggle(e.target.closest('.sessrec')));
   const mcPanel = ov.querySelector('.miccount'), mcBig = ov.querySelector('.mcbig'),
     mcState = ov.querySelector('.mcstate'), mcTempo = ov.querySelector('.mctempo');
-  const mcSens = ov.querySelector('.mcsens input');
-  mcSens.value = mic.sens;
-  mcSens.addEventListener('input', () => { mic.sens = +mcSens.value; store('gc:mic', { sens: mic.sens }); });
+  const mcSens = ov.querySelector('.mcsens input'),
+    mcLvl = ov.querySelector('.mclevel .lvl'), mcThr = ov.querySelector('.mclevel .thr');
+  // marca del umbral en el medidor (escala 0-40 dB sobre el piso de ruido)
+  const mcThrPos = () => { mcThr.style.left = Math.min(100, (2 + (100 - mic.sens) * 0.2) / 40 * 100) + '%'; };
+  mcSens.value = mic.sens; mcThrPos();
+  mcSens.addEventListener('input', () => { mic.sens = +mcSens.value; store('gc:mic', { sens: mic.sens }); mcThrPos(); });
   ov.querySelector('.sbmic').addEventListener('click', async e => {
     const b = e.target.closest('.sbmic');
     if (mic.on) { micStop(); b.classList.remove('on'); mcPanel.hidden = true; return; }
@@ -1213,6 +1218,10 @@ function startSession(dayIdx) {
       mcBig.classList.add('zeroed'); setTimeout(() => mcBig.classList.remove('zeroed'), 600);
     };
     mic.onTempo = (v, pct) => { mcTempo.textContent = v + ' · ' + pct + '% en el clic'; };
+    mic.onLevel = (lvl, mrg, act) => {
+      mcLvl.style.width = Math.max(0, Math.min(100, lvl / 40 * 100)) + '%';
+      mcLvl.classList.toggle('hot', act);
+    };
   });
   mcBig.addEventListener('click', () => { mic.count = 0; mic.offsets = []; mcBig.textContent = '0'; mcTempo.textContent = ''; });
   ov.querySelector('.sbdn').addEventListener('click', () => { met.bpm = Math.max(30, met.bpm - 5); metSave(); metUI(); sessionMetUI(); });
@@ -1675,7 +1684,7 @@ const mic = { stream: null, an: null, buf: null, env: null, timer: 0, on: false,
   count: 0, floorDb: -75, fluxDbAvg: 0, lo: 3, hi: 38,
   lo2: 102, hi2: 256, notch: null, lastOnset: 0, lastSound: 0,
   barMode: true, lastBarSeen: null,
-  offsets: [], onCount: null, onReset: null, onTempo: null, silenceMs: 3000,
+  offsets: [], onCount: null, onReset: null, onTempo: null, onLevel: null, silenceMs: 3000,
   sens: 50, dbg: { bandRms: 0, flux: 0 } };
 mic.sens = load('gc:mic', { sens: 50 }).sens;
 
@@ -1741,7 +1750,7 @@ function micStop() {
   mic.on = false;
   clearInterval(mic.timer);
   if (mic.stream) { mic.stream.getTracks().forEach(t => t.stop()); mic.stream = null; }
-  mic.an = null; mic.onCount = mic.onReset = mic.onTempo = null;
+  mic.an = null; mic.onCount = mic.onReset = mic.onTempo = mic.onLevel = null;
 }
 function micLoop() {
   if (!mic.on) return;
@@ -1769,9 +1778,10 @@ function micLoop() {
   // sensibilidad ajustable (slider del panel Contar, 0-100; 50 por defecto):
   // gobierna el umbral de ataque y el margen de "hay sonido" sobre el piso,
   // para que respirar o moverse cerca del teléfono no cuente como tocar
-  const thrOnset = 10 + (100 - mic.sens) * 0.4;   // sens 50 → 30
-  const presMrg = 4 + (100 - mic.sens) * 0.12;    // sens 50 → 10 dB
+  const thrOnset = 5 + (100 - mic.sens) * 0.5;    // sens 100→5 · 50→30 · 0→55
+  const presMrg = 2 + (100 - mic.sens) * 0.2;     // sens 100→2 · 50→12 · 0→22 dB
   if (meanDb > mic.floorDb + presMrg) mic.lastSound = now;
+  if (mic.onLevel) mic.onLevel(meanDb - mic.floorDb, presMrg, now - mic.lastSound < 200);
   // ataque: flujo en dB sobre su promedio móvil, antirrebote 150 ms
   const onset = fluxDb > Math.max(thrOnset, mic.fluxDbAvg * 2.5) && now - mic.lastOnset > 150;
   if (onset) {
