@@ -405,3 +405,170 @@ body.insession{overflow:hidden}
 .cfgtxt{width:100%;max-width:420px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
   font-size:13px;font-family:ui-monospace,monospace;margin:6px 0}
 .ajrecs .recrow span{width:auto;min-width:120px}
+
+/* ================================================================
+   TEMA OSCURO (estilo Bevel) — capa de overrides sobre el design
+   system del curso. Carga después del CSS inline del original,
+   así que gana sin modificar el contenido congelado.
+   ================================================================ */
+:root{
+  --ink:#eef2f6;        /* texto principal (antes era el azul oscuro) */
+  --paper:#0e1116;      /* fondo casi negro */
+  --line:#ffffff14;     /* bordes sutiles */
+  --soft:#1f2630;       /* relleno suave */
+  --muted:#8b95a3;
+  --green:#3ecf8e;      /* menta brillante */
+  --card:#161b22;       /* superficie de tarjeta */
+  --card2:#1e252f;      /* superficie elevada / botones */
+  --onaccent:#07130d;   /* texto sobre menta */
+  --amber:#e8b34b;
+  --red:#ff9c8d;
+  color-scheme:dark;
+}
+body{color:#c3cdda}
+h1,h2,h3{letter-spacing:-.02em}
+h2{font-weight:800}
+
+/* curso (CSS inline del original) */
+.hero{background:linear-gradient(150deg,#1b2330,#11151c);border:1px solid var(--line)}
+.hero h1{font-weight:800}
+.intro,.day,.view{background:var(--card);border-radius:20px}
+.day,.intro,.view{box-shadow:0 1px 2px #0004}
+.controls{background:#0e1116ee}
+select,button{background:var(--card2);color:var(--ink);border-color:var(--line);border-radius:11px}
+button{background:var(--card2);color:var(--ink)}
+.prog{background:#232b36}
+.brief{background:#ffffff07}
+.watch{background:#ffffff07}
+.pass{background:#14352a66;color:#9fe0c6}
+.exhead span{background:var(--green);color:var(--onaccent);box-shadow:none}
+.chord{background:var(--card2)}
+.chord.playing{box-shadow:0 0 0 2px var(--green),0 0 16px #3ecf8e44}
+.string{stroke:#6b7684}.fret{stroke:#39424e}.nut{stroke:#8a94a2}
+.mark{fill:var(--ink)}.tiny{fill:var(--muted)}
+.fingnum{fill:var(--onaccent)}
+
+/* tabbar flotante tipo píldora */
+.tabbar{position:absolute;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));
+  border-radius:26px;background:#151b23f2;border:1px solid #ffffff12;border-top:1px solid #ffffff12;
+  box-shadow:0 12px 32px #000a;padding:7px 8px}
+.tabbar button.active{background:#2b3441;color:#fff}
+.tabbar button.active svg.i{stroke-width:2.2}
+main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+
+/* demos */
+.demo{background:#ffffff05;border-color:#ffffff1a}
+.demo .play.playing{background:var(--green);color:var(--onaccent)}
+.demo .stopbtn{background:var(--card2);color:var(--ink)}
+.demobpm button{background:var(--card2);color:var(--ink)}
+
+/* diapasón */
+.fb .fb-string{stroke:#6b7684}
+.fb .fb-fret{stroke:#39424e}
+.fb .fb-nut{stroke:#8a94a2}
+.fb .fb-dotmark{fill:#242c37}
+.fb .fb-note.dim{fill:#2e5a48}
+.fb .fb-note.flash{fill:#eef2f6}
+.fb .fb-notelbl{fill:var(--onaccent)}
+.fb .fb-note.flash+.fb-notelbl{fill:#07130d}
+
+/* metrónomo */
+.metfab{border:1px solid var(--line);bottom:calc(86px + env(safe-area-inset-bottom));box-shadow:0 6px 18px #0009}
+.metfab.on{background:var(--green);color:var(--onaccent)}
+@keyframes metpulse{0%{box-shadow:0 0 0 0 #3ecf8e55}70%{box-shadow:0 0 0 12px #3ecf8e00}100%{box-shadow:0 0 0 0 #3ecf8e00}}
+.metpanel{background:#1b212bf8;bottom:calc(150px + env(safe-area-inset-bottom));box-shadow:0 14px 40px #000c}
+.metrow .mettap{background:var(--card2);color:var(--ink)}
+.metstart.on{background:var(--green);color:var(--onaccent)}
+.metbeat i{background:#2a323d}
+.metbeat i.acc.hit{background:#fff}
+
+/* canciones */
+.songcard{background:var(--card2);border-radius:16px}
+.songactions .ghost{background:var(--card2);color:var(--ink)}
+.songactions .danger,.recrow .danger{background:#e8705f1a;color:var(--red);border-color:#e8705f40}
+.songedit{background:var(--card2);color:var(--ink)}
+.songhint code{background:#ffffff10;border-color:#ffffff1f}
+
+/* referencia */
+.refsearch{background:var(--card2);color:var(--ink)}
+.notebtns button{background:var(--card2);color:var(--ink)}
+.notebtns button.active{background:var(--green);color:var(--onaccent)}
+
+/* modo sesión */
+.sessgo{color:var(--onaccent)}
+.session{background:var(--paper)}
+.sesshead{background:#141a22;border-bottom:1px solid var(--line);color:var(--ink)}
+.sessbpm{border-top-color:var(--line)}
+.sessbpm button{background:var(--card2);border-color:var(--line);color:var(--ink)}
+.sessbpm .sbmic.on{background:var(--green);border-color:var(--green);color:var(--onaccent)}
+.sessfoot{background:#10151cf2;border-top-color:var(--line)}
+.sessprev,.sessnext,.sessmet,.sessfoot .sessrec{background:var(--card2);color:var(--ink)}
+.sessmet.on{background:var(--green);color:var(--onaccent);border-color:var(--green)}
+.sessbanner{color:var(--onaccent)}
+.sessbanner button{background:#0e1116;color:var(--green)}
+.sessdots i{background:#2a323d}
+.sessdots i.past{background:#35604e}
+.sessdots i.cur{box-shadow:0 0 0 3px #3ecf8e33}
+.sessnotes{background:var(--card2);color:var(--ink)}
+.sessdone .sessfinish{color:var(--onaccent)}
+.daydone{background:var(--card2)}
+.daydone.done{color:var(--onaccent)}
+
+/* notas del día */
+.daynotes textarea{background:var(--card2);color:var(--ink)}
+
+/* calendario de progreso */
+.progbtn{background:var(--card2)}
+.progmodal,.toolmodal{background:#000000a8}
+.progcard,.toolcard{background:#1a2029;box-shadow:0 18px 50px #000c;border:1px solid var(--line);border-radius:20px}
+.proggrid i{background:#232b36}
+.proggrid i.cur{box-shadow:0 0 0 2px var(--ink) inset}
+
+/* afinador */
+.tungauge{background:#141a22}
+.tungauge.intune{background:#14352a;border-color:var(--green);box-shadow:0 0 24px #3ecf8e33}
+.tunscale i{background:#39424e}
+.needle{background:var(--ink)}
+.tunerr{color:var(--red)}
+.tunstr button{background:var(--card2);color:var(--ink)}
+.tunstr button.active{background:#2b3441;color:#fff;border-color:#3d4857}
+.tunon{color:var(--onaccent);background:var(--green);border-color:var(--green)}
+
+/* respaldo */
+.bakrow .ghost{background:var(--card2);color:var(--ink)}
+
+/* inicio */
+.ringbg{stroke:#242c37}
+.ringfg{filter:drop-shadow(0 0 6px #3ecf8e66)}
+.todaycard{background:var(--card2);border-radius:16px}
+.homego{color:var(--onaccent)}
+.homeread,.homerow button{background:var(--card2);color:var(--ink)}
+
+/* repaso espaciado (acento ámbar) */
+.revcard{background:#241d10;border-color:#e8b34b33}
+.revgo{background:var(--amber);border-color:var(--amber);color:#201607}
+.revskip{background:var(--card2)}
+
+/* rasgueo */
+.strumrow span.u i{color:#5f6b79}
+
+/* número de BPM progresivo */
+.metprog input[type=number]{background:var(--card2);color:var(--ink)}
+
+/* herramientas */
+.chgo,.ccrow button{color:var(--onaccent)}
+.chgbig{color:var(--onaccent)}
+.earplay{background:var(--green);border-color:var(--green);color:var(--onaccent)}
+.earopts button{background:var(--card2);color:var(--ink)}
+.earopts button.good{background:#14352a;border-color:var(--green);color:var(--green)}
+.earopts button.bad{background:#351a17;border-color:#e8705f55;color:var(--red)}
+.beta{background:#2b3441;color:#cbd5e1}
+.ccnote.ok{background:#14352a;color:var(--green)}
+.ccnote.no{background:#351a17;color:var(--red)}
+.sessrate button{background:var(--card2);color:var(--ink)}
+.sessrate button.sel{color:var(--onaccent)}
+
+/* ajustes */
+.segrow button{background:var(--card2);color:var(--ink)}
+.segrow button.active{color:var(--onaccent)}
+.cfgtxt{background:var(--card2);color:var(--ink)}

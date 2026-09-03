@@ -12,14 +12,14 @@ details{border:1px solid var(--line);border-radius:9px;overflow:hidden}summary{p
 .chords{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,145px));gap:8px;margin:10px 0}.chord{border:1px solid var(--line);border-radius:9px;padding:6px;text-align:center}svg{width:100%}.string{stroke:#596269;stroke-width:1}.fret{stroke:#aab1b5;stroke-width:1}.nut{stroke-width:4}.dot{fill:var(--green)}.open{fill:none;stroke:var(--green);stroke-width:2}.barre{stroke:var(--green);stroke-width:9;stroke-linecap:round}.mark{font-size:17px;font-weight:700}.tiny{font-size:10px;fill:#68737a}.legend{font-size:12px;color:var(--muted)}
 .sources{font-size:14px}@media(max-width:650px){.grid{grid-template-columns:1fr}.hero h1{font-size:28px}}
 </style><link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#17212b">
+<meta name="theme-color" content="#0e1116">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Guitarra">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=96fece5fdd">
+<link rel="stylesheet" href="app.css?v=e76568e197">
 </head><body><main>
 <section class=hero><h1>Curso de guitarra · 6 meses</h1><p>182 sesiones · 7 días por semana · 30 minutos diarios</p>
 <div class=goal><b>Meta:</b> poder abordar una canción de acompañamiento nueva: encontrar pulso/compás, entender acordes y forma, elegir un patrón simple, automatizarlo, ubicar entradas vocales e integrar la voz sin que la guitarra siga cada palabra.</div></section>
@@ -3213,7 +3213,7 @@ const D=[...document.querySelectorAll('.day')],ds=document.getElementById('day')
 function show(i){cur=Math.max(0,Math.min(181,i));D.forEach((x,k)=>x.classList.toggle('active',k===cur));ds.value=cur+1;ws.value=D[cur].dataset.week;bar.style.width=((cur+1)/182*100)+'%';document.getElementById('prev').disabled=cur===0;document.getElementById('next').disabled=cur===181;}
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);ds.onchange=()=>show(+ds.value-1);ws.onchange=()=>{let w=+ws.value;show(D.findIndex(x=>+x.dataset.week===w));};
 let m=location.hash.match(/day-(\d+)/);show(m?+m[1]-1:0);
-</script><script defer src="app.js?v=96fece5fdd"></script>
+</script><script defer src="app.js?v=e76568e197"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>{
 navigator.serviceWorker.register('sw.js').then(r=>{r.update();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')r.update()})});
