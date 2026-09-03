@@ -1220,6 +1220,8 @@ function startSession(dayIdx) {
   session.exs = [...day.querySelectorAll('.exercise')];
   session.idx = 0;
   document.body.classList.add('insession');
+  const mp = document.querySelector('.metpanel');
+  if (mp) mp.classList.remove('open');
 
   const eyebrow = day.querySelector('.eyebrow');
   const ov = document.createElement('div');
@@ -1251,6 +1253,7 @@ function startSession(dayIdx) {
       <button class="sbdn" aria-label="Bajar tempo">−5</button>
       <span class="sbval"></span>
       <button class="sbup" aria-label="Subir tempo">+5</button>
+      <button class="sbpanel" aria-label="Panel del metrónomo">♩<small>Tempo</small></button>
     </div>
     <footer class="sessfoot">
       <button class="sessprev" aria-label="Anterior">←</button>
@@ -1275,6 +1278,10 @@ function startSession(dayIdx) {
   ov.querySelector('.sessmet').addEventListener('click', () => {
     met.on ? metStop() : metStart();
     sessionMetUI();
+  });
+  // el panel completo del metrónomo (progresivo, TAP, compás) también vive en la sesión
+  ov.querySelector('.sbpanel').addEventListener('click', () => {
+    document.querySelector('.metpanel').classList.toggle('open');
   });
   ov.querySelector('.sessrec').addEventListener('click', e => recToggle(e.target.closest('.sessrec')));
   const mcPanel = ov.querySelector('.miccount'), mcBig = ov.querySelector('.mcbig'),
@@ -1446,6 +1453,8 @@ function closeSession() {
   stopTimer();
   stopPlayback();
   metStop();
+  const pnl = document.querySelector('.metpanel');
+  if (pnl) pnl.classList.remove('open');
   if (rec.mr) rec.mr.stop();
   if (mic.on) micStop();
   if (session.idx < session.exs.length) returnExercise();

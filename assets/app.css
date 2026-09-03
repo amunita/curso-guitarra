@@ -150,7 +150,9 @@ details[open] summary::after{transform:rotate(180deg)}
 /* ---- modo sesión ---- */
 .sessgo{border:1px solid var(--green);background:var(--green);color:white;border-radius:9px;
   padding:8px 12px;font-weight:750;white-space:nowrap}
-body.insession .tabbar,body.insession .metfab,body.insession .metpanel{display:none!important}
+body.insession .tabbar,body.insession .metfab{display:none!important}
+/* en sesión el panel del metrónomo se abre con el botón ♩ Tempo, sobre el pie de la sesión */
+body.insession .metpanel.open{z-index:70;bottom:calc(150px + env(safe-area-inset-bottom))}
 body.insession{overflow:hidden}
 .session{position:absolute;inset:0;z-index:60;background:var(--paper);display:flex;flex-direction:column}
 .sesshead{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
@@ -204,9 +206,9 @@ body.insession{overflow:hidden}
 .sessfoot .sessrec small{font-size:9px;font-weight:800;line-height:1}
 .recdot{width:13px;height:13px;border-radius:50%;background:#c0392b;display:block}
 .sessrec.rec .recdot{background:white}
-.sessbpm .sbmic{display:flex;flex-direction:column;align-items:center;justify-content:center;
+.sessbpm .sbmic,.sessbpm .sbpanel{display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:1px;height:44px;font-size:14px;line-height:1}
-.sessbpm .sbmic small{font-size:9px;font-weight:800}
+.sessbpm .sbmic small,.sessbpm .sbpanel small{font-size:9px;font-weight:800}
 .sessbpm .sbmic.on{color:white}
 .sessbanner{display:none;align-items:center;gap:9px;padding:11px 14px;background:var(--green);color:white;font-weight:800}
 .sessbanner button{background:#ffffff;color:var(--green);border:none;border-radius:9px;padding:10px 13px;font-weight:800}
