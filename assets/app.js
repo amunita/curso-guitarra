@@ -1583,7 +1583,7 @@ function tunerStop() {
   tuner.on = false;
   if (tuner.raf) cancelAnimationFrame(tuner.raf);
   if (tuner.src) { try { tuner.src.disconnect(); } catch (e) {} tuner.src = null; }
-  tuner.stream = null; // stream compartido: no se detiene
+  if (tuner.stream) { micStreamDone(); tuner.stream = null; }
   tuner.an = null;
 }
 function tunerLoop() {
@@ -2168,20 +2168,27 @@ const mic = { stream: null, an: null, buf: null, env: null, timer: 0, on: false,
 /* Pide el micrófono prefiriendo SIEMPRE el del teléfono: con AirPods/BT el
    sistema entrega el micrófono de los audífonos (baja calidad, pierde ataques
    de guitarra); el audio de la app sigue saliendo por los AirPods igual. */
-/* iOS no persiste el permiso de micrófono entre lanzamientos de una PWA y vuelve
-   a preguntar en cada getUserMedia si los tracks se detuvieron. Por eso se cachea
-   UN stream vivo para toda la vida de la página: la app pregunta una sola vez por
-   apertura y contador/afinador/grabación/verificador lo comparten sin detenerlo. */
-let micShared = null;
-function micSharedAlive() {
-  return !!(micShared && micShared.getAudioTracks().some(t => t.readyState === 'live'));
+/* UN stream compartido con conteo de usos. Mientras alguien lo use (contador,
+   afinador, grabación, verificador) se comparte sin volver a pedir permiso; cuando
+   el último termina, los tracks SE DETIENEN: con captura viva iOS enruta el audio
+   al auricular del teléfono y las demos quedan inaudibles por el parlante. Ese
+   corte obliga a iOS a volver a preguntar el permiso en el siguiente uso — es el
+   precio de que las demos suenen; no hay forma web de tener ambas cosas. */
+let micShared = null, micUses = 0;
+function micStreamDone() {
+  micUses = Math.max(0, micUses - 1);
+  if (micUses) return;
+  if (micShared) { try { micShared.getTracks().forEach(t => t.stop()); } catch (e) {} micShared = null; }
 }
-function micRelease() {
+function micForceRelease() { // solo recuperación: track muerto de verdad
   if (micShared) { try { micShared.getTracks().forEach(t => t.stop()); } catch (e) {} micShared = null; }
 }
 async function getMicStream() {
-  if (micSharedAlive()) return micShared;
-  micRelease();
+  if (micShared && micShared.getAudioTracks().some(t => t.readyState === 'live')) {
+    micUses++;
+    return micShared;
+  }
+  micForceRelease();
   const opts = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
   let stream;
   try {
@@ -2203,6 +2210,7 @@ async function getMicStream() {
     }
   } catch (e) {}
   micShared = stream;
+  micUses = Math.max(1, micUses); // tras una recuperación se conservan los usos vigentes
   return stream;
 }
 async function micStart() {
@@ -2243,7 +2251,7 @@ function micStop() {
   mic.on = false;
   clearInterval(mic.timer);
   if (mic.src) { try { mic.src.disconnect(); } catch (e) {} mic.src = null; }
-  mic.stream = null; // el stream compartido sigue vivo: así iOS no vuelve a pedir permiso
+  if (mic.stream) { micStreamDone(); mic.stream = null; }
   mic.an = null; mic.onCount = mic.onReset = mic.onTempo = mic.onLevel = null;
 }
 // iOS corta el micrófono sin avisar (botón de volumen, llamada, Siri): el
@@ -2256,7 +2264,7 @@ async function micReacquire() {
   if (!mic.on || mic.reacq) return;
   mic.reacq = true;
   try {
-    micRelease(); // track muerto de verdad: soltar el cacheado y re-pedir
+    micForceRelease(); // track muerto de verdad: soltar el cacheado y re-pedir
     if (mic.src) { try { mic.src.disconnect(); } catch (e) {} }
     const s = await getMicStream();
     if (s && mic.on) {
@@ -2387,8 +2395,8 @@ async function recToggle(btn) {
   rec.mr.onstop = () => {
     clearTimeout(rec.timer);
     const blob = new Blob(chunks, { type: rec.mr.mimeType || 'audio/mp4' });
-    rec.mr = null; rec.stream = null; // stream compartido: no se detiene
-
+    rec.mr = null;
+    if (rec.stream) { micStreamDone(); rec.stream = null; }
     btn.classList.remove('rec');
     const day = DAYS[session.open ? session.dayIdx : currentDayIndex()];
     const n = DAYS.indexOf(day) + 1;
@@ -2579,7 +2587,8 @@ async function chordCheck(name, out) {
       if (performance.now() - t0 < 2600) requestAnimationFrame(loop); else res();
     })();
   });
-  try { src.disconnect(); } catch (e) {} // stream compartido: no se detiene
+  try { src.disconnect(); } catch (e) {}
+  micStreamDone();
   const want = [...new Set(chordMidis(c.frets).map(m => m % 12))];
   const max = Math.max.apply(null, [...chroma]);
   if (max < 1e-6) { out.textContent = 'No escuché nada: acércate al micrófono y rasguea fuerte.'; return; }
