@@ -1247,6 +1247,7 @@ function startSession(dayIdx) {
         <label class="mcsens mcdur"><span>Duración mín.</span><input type="range" min="0" max="600" step="25"><b class="mcms"></b></label>
         <div class="mclevel" title="Nivel que oye el micrófono; la marca es el umbral"><i class="lvl"></i><b class="thr"></b></div>
       </div>
+      <button class="mcx" aria-label="Mostrar/ocultar ajustes del contador">⚙</button>
     </div>
     <div class="sessbpm">
       <button class="sbmic" aria-label="Contador de golpes por micrófono">🎤<small>Contar</small></button>
@@ -1291,7 +1292,13 @@ function startSession(dayIdx) {
     mcLvl = ov.querySelector('.mclevel .lvl'), mcThr = ov.querySelector('.mclevel .thr');
   // marca del umbral en el medidor (escala 0-40 dB sobre el piso de ruido)
   const mcThrPos = () => { mcThr.style.left = Math.min(100, (2 + (100 - mic.sens) * 0.2) / 40 * 100) + '%'; };
-  const mcSave = () => store('gc:mic', { sens: mic.sens, minMs: mic.minMs });
+  const mcSave = () => store('gc:mic', { sens: mic.sens, minMs: mic.minMs, mini: mic.mini });
+  mcPanel.classList.toggle('mini', mic.mini);
+  ov.querySelector('.mcx').addEventListener('click', () => {
+    mic.mini = !mic.mini;
+    mcPanel.classList.toggle('mini', mic.mini);
+    mcSave();
+  });
   const mcMsTxt = () => { mcMs.textContent = mic.minMs ? mic.minMs + ' ms' : 'off'; };
   mcSens.value = mic.sens; mcThrPos();
   mcDur.value = mic.minMs; mcMsTxt();
@@ -1560,7 +1567,7 @@ async function tunerStart() {
     return false;
   }
   audio();
-  const src = ctx.createMediaStreamSource(tuner.stream);
+  const src = tuner.src = ctx.createMediaStreamSource(tuner.stream);
   tuner.an = ctx.createAnalyser();
   tuner.an.fftSize = 4096;
   src.connect(tuner.an);
@@ -1575,7 +1582,8 @@ async function tunerStart() {
 function tunerStop() {
   tuner.on = false;
   if (tuner.raf) cancelAnimationFrame(tuner.raf);
-  if (tuner.stream) { tuner.stream.getTracks().forEach(t => t.stop()); tuner.stream = null; }
+  if (tuner.src) { try { tuner.src.disconnect(); } catch (e) {} tuner.src = null; }
+  tuner.stream = null; // stream compartido: no se detiene
   tuner.an = null;
 }
 function tunerLoop() {
@@ -2154,12 +2162,26 @@ const mic = { stream: null, an: null, buf: null, env: null, timer: 0, on: false,
 {
   const st = load('gc:mic', { sens: 50, minMs: 0 });
   mic.sens = st.sens; mic.minMs = st.minMs || 0;
+  mic.mini = st.mini !== false; // contador compacto por defecto; ⚙ despliega los ajustes
 }
 
 /* Pide el micrófono prefiriendo SIEMPRE el del teléfono: con AirPods/BT el
    sistema entrega el micrófono de los audífonos (baja calidad, pierde ataques
    de guitarra); el audio de la app sigue saliendo por los AirPods igual. */
+/* iOS no persiste el permiso de micrófono entre lanzamientos de una PWA y vuelve
+   a preguntar en cada getUserMedia si los tracks se detuvieron. Por eso se cachea
+   UN stream vivo para toda la vida de la página: la app pregunta una sola vez por
+   apertura y contador/afinador/grabación/verificador lo comparten sin detenerlo. */
+let micShared = null;
+function micSharedAlive() {
+  return !!(micShared && micShared.getAudioTracks().some(t => t.readyState === 'live'));
+}
+function micRelease() {
+  if (micShared) { try { micShared.getTracks().forEach(t => t.stop()); } catch (e) {} micShared = null; }
+}
 async function getMicStream() {
+  if (micSharedAlive()) return micShared;
+  micRelease();
   const opts = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
   let stream;
   try {
@@ -2180,6 +2202,7 @@ async function getMicStream() {
       }
     }
   } catch (e) {}
+  micShared = stream;
   return stream;
 }
 async function micStart() {
@@ -2187,7 +2210,7 @@ async function micStart() {
   audio();
   mic.stream = await getMicStream();
   if (!mic.stream) return false;
-  const src = ctx.createMediaStreamSource(mic.stream);
+  const src = mic.src = ctx.createMediaStreamSource(mic.stream);
   mic.an = ctx.createAnalyser();
   mic.an.fftSize = 2048;
   mic.an.smoothingTimeConstant = 0; // sin suavizado: el flujo necesita ver el salto
@@ -2219,7 +2242,8 @@ async function micStart() {
 function micStop() {
   mic.on = false;
   clearInterval(mic.timer);
-  if (mic.stream) { mic.stream.getTracks().forEach(t => t.stop()); mic.stream = null; }
+  if (mic.src) { try { mic.src.disconnect(); } catch (e) {} mic.src = null; }
+  mic.stream = null; // el stream compartido sigue vivo: así iOS no vuelve a pedir permiso
   mic.an = null; mic.onCount = mic.onReset = mic.onTempo = mic.onLevel = null;
 }
 // iOS corta el micrófono sin avisar (botón de volumen, llamada, Siri): el
@@ -2232,11 +2256,13 @@ async function micReacquire() {
   if (!mic.on || mic.reacq) return;
   mic.reacq = true;
   try {
-    if (mic.stream) mic.stream.getTracks().forEach(t => t.stop());
+    micRelease(); // track muerto de verdad: soltar el cacheado y re-pedir
+    if (mic.src) { try { mic.src.disconnect(); } catch (e) {} }
     const s = await getMicStream();
     if (s && mic.on) {
       mic.stream = s;
-      ctx.createMediaStreamSource(s).connect(mic.an);
+      mic.src = ctx.createMediaStreamSource(s);
+      mic.src.connect(mic.an);
       micTrackWatch();
     }
   } catch (e) {}
@@ -2361,8 +2387,8 @@ async function recToggle(btn) {
   rec.mr.onstop = () => {
     clearTimeout(rec.timer);
     const blob = new Blob(chunks, { type: rec.mr.mimeType || 'audio/mp4' });
-    rec.stream.getTracks().forEach(t => t.stop());
-    rec.mr = null; rec.stream = null;
+    rec.mr = null; rec.stream = null; // stream compartido: no se detiene
+
     btn.classList.remove('rec');
     const day = DAYS[session.open ? session.dayIdx : currentDayIndex()];
     const n = DAYS.indexOf(day) + 1;
@@ -2553,7 +2579,7 @@ async function chordCheck(name, out) {
       if (performance.now() - t0 < 2600) requestAnimationFrame(loop); else res();
     })();
   });
-  stream.getTracks().forEach(t => t.stop());
+  try { src.disconnect(); } catch (e) {} // stream compartido: no se detiene
   const want = [...new Set(chordMidis(c.frets).map(m => m % 12))];
   const max = Math.max.apply(null, [...chroma]);
   if (max < 1e-6) { out.textContent = 'No escuché nada: acércate al micrófono y rasguea fuerte.'; return; }

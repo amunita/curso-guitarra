@@ -44,7 +44,9 @@ def main():
     # viewport con viewport-fit para el notch (solo atributo, no contenido)
     html = html.replace(
         'content="width=device-width,initial-scale=1"',
-        'content="width=device-width,initial-scale=1,viewport-fit=cover"',
+        # maximum-scale=1 evita el auto-zoom de iOS al enfocar inputs (y que quede
+        # mal el zoom al cerrar el teclado); el pinch manual no se usa en la app
+        'content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"',
     )
 
     DOCS.mkdir(exist_ok=True)

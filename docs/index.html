@@ -1,4 +1,4 @@
-<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!doctype html><html lang=es><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <title>Curso de guitarra · 6 meses</title><style>
 :root{--ink:#17212b;--green:#2f5d50;--paper:#f4f6f5;--line:#d8dfdc;--soft:#edf3f0;--muted:#68737a}*{box-sizing:border-box}
 body{margin:0;background:var(--paper);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#28323b;line-height:1.5}main{max-width:980px;margin:auto;padding:16px 14px 70px}
@@ -19,7 +19,7 @@ details{border:1px solid var(--line);border-radius:9px;overflow:hidden}summary{p
 <meta name="apple-mobile-web-app-title" content="Guitarra">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=6b3db8c212">
+<link rel="stylesheet" href="app.css?v=1ff49b61d5">
 </head><body><main>
 <section class=hero><h1>Curso de guitarra · 6 meses</h1><p>182 sesiones · 7 días por semana · 30 minutos diarios</p>
 <div class=goal><b>Meta:</b> poder abordar una canción de acompañamiento nueva: encontrar pulso/compás, entender acordes y forma, elegir un patrón simple, automatizarlo, ubicar entradas vocales e integrar la voz sin que la guitarra siga cada palabra.</div></section>
@@ -3213,7 +3213,7 @@ const D=[...document.querySelectorAll('.day')],ds=document.getElementById('day')
 function show(i){cur=Math.max(0,Math.min(181,i));D.forEach((x,k)=>x.classList.toggle('active',k===cur));ds.value=cur+1;ws.value=D[cur].dataset.week;bar.style.width=((cur+1)/182*100)+'%';document.getElementById('prev').disabled=cur===0;document.getElementById('next').disabled=cur===181;}
 document.getElementById('prev').onclick=()=>show(cur-1);document.getElementById('next').onclick=()=>show(cur+1);ds.onchange=()=>show(+ds.value-1);ws.onchange=()=>{let w=+ws.value;show(D.findIndex(x=>+x.dataset.week===w));};
 let m=location.hash.match(/day-(\d+)/);show(m?+m[1]-1:0);
-</script><script defer src="app.js?v=6b3db8c212"></script>
+</script><script defer src="app.js?v=1ff49b61d5"></script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>{
 navigator.serviceWorker.register('sw.js').then(r=>{r.update();
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')r.update()})});

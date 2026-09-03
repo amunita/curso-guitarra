@@ -574,3 +574,16 @@ main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
 .segrow button{background:var(--card2);color:var(--ink)}
 .segrow button.active{color:var(--onaccent)}
 .cfgtxt{background:var(--card2);color:var(--ink)}
+
+/* iOS hace auto-zoom al enfocar inputs con letra <16px: todos a 16 */
+input,select,textarea{font-size:16px!important}
+.metprog input[type=number]{width:56px}
+
+/* contador por micrófono: modo compacto (⚙ alterna los ajustes) */
+.miccount{position:relative}
+.miccount .mcinfo{padding-right:34px}
+.miccount .mcx{position:absolute;top:8px;right:10px;width:34px;height:34px;padding:0;border:none;
+  border-radius:9px;background:#ffffff10;color:var(--muted);font-size:16px}
+.miccount.mini{padding:8px 14px}
+.miccount.mini .mcbig{width:50px;height:50px;font-size:22px;border-width:2px}
+.miccount.mini .mcinfo small,.miccount.mini .mcsens{display:none!important}
