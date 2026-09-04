@@ -2504,53 +2504,105 @@ function openChanges() {
     $('.chgcount').textContent = count + (count === 1 ? ' cambio' : ' cambios');
   });
 }
-// entrenamiento de oído: ¿qué acorde suena?
+// entrenamiento de oído: juego por niveles (notas simples → acordes → séptimas/novenas).
+// 3 aciertos seguidos suben de nivel; un error baja uno. El nivel se persiste en gc:ear.
+const EAR_LEVELS = [
+  { name: 'Notas naturales', notes: [0, 2, 4, 5, 7, 9, 11] },
+  { name: 'Notas y sostenidos', notes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+  { name: 'Acordes mayores', chords: ['C', 'D', 'E', 'F', 'G', 'A'] },
+  { name: 'Mayores y menores', chords: ['C', 'D', 'E', 'F', 'G', 'A', 'Am', 'Bm', 'Cm', 'Dm', 'Em', 'Fm', 'Gm'] },
+  { name: 'Sostenidos y bemoles', chords: ['E', 'F', 'Bb', 'B', 'C#', 'Eb', 'F#', 'Ab', 'Bbm', 'C#m', 'Ebm', 'F#m', 'G#m'] },
+  { name: 'Séptimas', chords: ['A7', 'B7', 'C7', 'D7', 'E7', 'F7', 'G7', 'Amaj7', 'Cmaj7', 'Dmaj7', 'Emaj7', 'Fmaj7', 'Gmaj7', 'Am7', 'Bm7', 'Cm7', 'Dm7', 'Em7', 'F#m7', 'Gm7'] },
+  { name: 'Novenas y suspendidos', chords: ['Cadd9', 'Gadd9', 'Aadd9', 'E9', 'A9', 'Dsus2', 'Dsus4', 'Asus2', 'Asus4', 'Esus4'] }
+];
+const EAR_UP = 3; // aciertos seguidos para subir de nivel
 function openEar() {
-  const st = load('gc:ear', { streak: 0, best: 0 });
-  st.streak = 0;
+  const st = load('gc:ear', { lvl: 1, best: 0 });
+  let lvl = Math.min(Math.max(st.lvl || 1, 1), EAR_LEVELS.length);
+  let hits = 0, streak = 0;
   const ov = toolModal(`
     <h3>Entrena el oído</h3>
-    <p class="legend">Suena un acorde del curso: adivina cuál es. Puedes repetirlo las veces que quieras.</p>
-    <div class="earscore">Racha: <b class="earstreak">0</b> · Mejor: <b class="earbest">${st.best}</b></div>
+    <div class="earlvl"><b class="earlvlnum"></b> <span class="earlvlname"></span></div>
+    <p class="legend earlegend"></p>
+    <div class="earscore">Racha: <b class="earstreak">0</b> · Mejor: <b class="earbest">${st.best}</b> · <span class="earprog"></span></div>
     <p><button class="earplay">🔊 Repetir</button></p>
     <div class="earopts"></div>
     <div class="earmsg"></div>`);
   const $ = s => ov.querySelector(s);
-  const names = Object.keys(CHORDS).sort();
-  let answer = null, locked = false;
-  function playAnswer() { if (answer) { stopPlayback(); strumChord(answer, ctx ? ctx.currentTime + 0.05 : 0, 0.9); } }
+  let answer = null, answerMidi = null, locked = false;
+  const level = () => EAR_LEVELS[lvl - 1];
+  const optTxt = v => level().notes ? noteTxt(v) : v;
+  function renderLevel() {
+    const L = level();
+    $('.earlvlnum').textContent = 'Nivel ' + lvl;
+    $('.earlvlname').textContent = L.name;
+    $('.earlegend').textContent = (L.notes ? 'Suena una nota' : 'Suena un acorde') +
+      ': adivina cuál es. Puedes repetirlo las veces que quieras.';
+    $('.earprog').textContent = lvl < EAR_LEVELS.length
+      ? '●'.repeat(hits) + '○'.repeat(EAR_UP - hits) + ' para subir'
+      : 'Nivel máximo';
+  }
+  function playAnswer() {
+    if (answer == null) return;
+    stopPlayback();
+    const when = ctx ? ctx.currentTime + 0.05 : 0;
+    if (answerMidi != null) pluck(answerMidi, when, 0.9);
+    else strumChord(answer, when, 0.9);
+  }
+  function pick(b, v) {
+    if (locked) return;
+    locked = true;
+    const good = v === answer;
+    b.classList.add(good ? 'good' : 'bad');
+    if (!good) {
+      const ok = [...$('.earopts').children].find(x => x.__v === answer);
+      if (ok) ok.classList.add('good');
+    }
+    let msg;
+    if (good) {
+      streak++; hits++;
+      if (streak > st.best) st.best = streak;
+      msg = '✅ ¡Ese era!';
+      if (hits >= EAR_UP && lvl < EAR_LEVELS.length) {
+        lvl++; hits = 0;
+        msg = `🔼 ¡Subiste al nivel ${lvl}: ${level().name}!`;
+      } else if (hits >= EAR_UP) hits = 0;
+    } else {
+      msg = `Era ${optTxt(answer)}.`;
+      streak = 0; hits = 0;
+      if (lvl > 1) { lvl--; msg += ` 🔽 Bajas al nivel ${lvl}: ${level().name}.`; }
+    }
+    store('gc:ear', { lvl, best: st.best });
+    $('.earstreak').textContent = streak;
+    $('.earbest').textContent = st.best;
+    $('.earmsg').textContent = msg;
+    renderLevel();
+    setTimeout(next, good ? 1000 : 2200);
+  }
   function next() {
     locked = false;
     $('.earmsg').textContent = '';
-    answer = names[Math.floor(Math.random() * names.length)];
-    const pool = names.filter(x => x !== answer);
+    const L = level();
+    const pool = L.notes ? L.notes.slice() : L.chords.filter(n => CHORDS[n]);
+    answer = pool[Math.floor(Math.random() * pool.length)];
+    // las notas suenan en un registro cómodo de la guitarra (octavas 3 o 4)
+    answerMidi = L.notes ? 48 + answer + 12 * (Math.random() < 0.5 ? 0 : 1) : null;
+    const rest = pool.filter(x => x !== answer);
     const opts = [answer];
-    while (opts.length < Math.min(4, names.length)) {
-      const c = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-      opts.push(c);
+    while (opts.length < Math.min(4, pool.length)) {
+      opts.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
     }
     opts.sort(() => Math.random() - 0.5);
     const box = $('.earopts');
     box.innerHTML = '';
-    opts.forEach(name => {
+    opts.forEach(v => {
       const b = document.createElement('button');
-      b.textContent = name;
-      b.addEventListener('click', () => {
-        if (locked) return;
-        locked = true;
-        const good = name === answer;
-        b.classList.add(good ? 'good' : 'bad');
-        if (!good) [...box.children].find(x => x.textContent === answer).classList.add('good');
-        st.streak = good ? st.streak + 1 : 0;
-        if (st.streak > st.best) st.best = st.streak;
-        store('gc:ear', { best: st.best });
-        $('.earstreak').textContent = st.streak;
-        $('.earbest').textContent = st.best;
-        $('.earmsg').textContent = good ? '✅ ¡Ese era!' : `Era ${answer}. Escúchalos de nuevo y sigue.`;
-        setTimeout(() => { next(); playAnswer(); }, good ? 900 : 1800);
-      });
+      b.textContent = optTxt(v);
+      b.__v = v;
+      b.addEventListener('click', () => pick(b, v));
       box.append(b);
     });
+    renderLevel();
     playAnswer();
   }
   $('.earplay').addEventListener('click', playAnswer);

@@ -587,3 +587,9 @@ input,select,textarea{font-size:16px!important}
 .miccount.mini{padding:8px 14px}
 .miccount.mini .mcbig{width:50px;height:50px;font-size:22px;border-width:2px}
 .miccount.mini .mcinfo small,.miccount.mini .mcsens{display:none!important}
+
+/* juego de oído por niveles */
+.earlvl{margin:2px 0 6px;font-size:15px}
+.earlvl b{color:var(--green)}
+.earlvl span{color:var(--muted);font-weight:600;margin-left:4px}
+.earprog{letter-spacing:2px}
